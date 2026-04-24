@@ -713,13 +713,20 @@ function parseTxtBlocks(text, fname){
 
       /* Debt */
       var ndIdx=block.indexOf('ND/EBITDA');
+      entry.nd_ebitda=null;entry.nd_ebitda_fc=null;
       if(ndIdx>=0){
-        var ndSec=block.substring(ndIdx,ndIdx+200);
+        var ndSec=block.substring(ndIdx,ndIdx+300);
         var ndM=ndSec.match(/Current\s*:\s*([\d.-]+)x/);
-        entry.nd_ebitda=ndM?pn(ndM[1]):null;
+        if(ndM) entry.nd_ebitda=pn(ndM[1]);
+        var ndFcM=ndSec.match(/^fc\s*:\s*([\d.-]+)x/m);
+        if(ndFcM) entry.nd_ebitda_fc=pn(ndFcM[1]);
       }
       var icM=block.match(/Interest cover[\s\S]{0,50}?Current\s*:\s*([\d.]+)x/);
       entry.int_cover=icM?pn(icM[1]):null;
+      var icFcM=block.match(/Interest cover[\s\S]{0,80}?^fc\s*:\s*([\d.]+)x/m);
+      entry.int_cover_fc=icFcM?pn(icFcM[1]):null;
+      var ndFcfM=block.match(/fc\s+ND\/FCF\s*:\s*([\d.-]+)x/);
+      entry.nd_fcf_fc=ndFcfM?pn(ndFcfM[1]):null;
 
       /* Weekly snapshots + broker momentum */
       var snapIdx=block.indexOf('── WEEKLY SNAPSHOT');
@@ -867,10 +874,25 @@ function ignLoadFile5(rows){
       eps_act:ignF(r['EPS']),fc_eps:ignF(r['fc EPS']),
       rev_act:ignF(r['Turnover (m)']),fc_rev:ignF(r['fc Turnover (m)']),
       bk_eps_1w:ignF(r['Broker EPS upgrade % (1w)']),
-      bk_eps_1m:ignF(r['fc EPS upgrade % (1m)']),
+      bk_eps_1m:ignF(r['Broker EPS upgrade % (1m)']),
       bk_rev_1w:ignF(r['Broker Revenue upgrade % (1w)']),
       bk_rev_1m:ignF(r['Broker Turnover upgrade % (1m)']),
-      idx_mem:(r['Index membership']||'').trim()
+      idx_mem:(r['Index membership']||'').trim(),
+      new_high:(r['New High?']||'').trim()==='1',
+      price:ignF(r['Price']),
+      p_lt_21:(r['Price < 21d MA']||'').trim()==='1',
+      p_lte_50:(r['Price <= MA (50 SMA)']||'').trim()==='1',
+      close_1td:ignF(r['Close 1td ago']),
+      close_2td:ignF(r['Close 2td ago']),
+      close_3td:ignF(r['Close 3td ago']),
+      days_since_low:ignF(r['Days since low (low) between 1td and 5td']),
+      high_1td:ignF(r['High 1td ago']),
+      rs_6m:ignF(r['Rel to MCX (6m)']),
+      pct_12m_high:ignF(r['Price % chg 12 m high']),
+      ma50:(r['Price > MA (50 SMA)']||'').trim()==='1',
+      ma100:(r['Price > MA (100 SMA)']||'').trim()==='1',
+      ma200:(r['Price > MA (200 SMA)']||'').trim()==='1',
+      ma50_gt_200:(r['MA (50 SMA) > MA (200 SMA)']||'').trim()==='1'
     };
   }
   ignFile5Map=map;
@@ -1141,8 +1163,15 @@ function ignRun(){
       if(re.pbt['3y_h1']!==undefined) existing['3y ago H1 Pre-tax profit (m)']=re.pbt['3y_h1'];
       if(re.pbt['3y_h2']!==undefined) existing['3y ago H2 Pre-tax profit (m)']=re.pbt['3y_h2'];
     }
-    if(re.nd_ebitda!==undefined) existing['Net debt to EBITDA']=re.nd_ebitda;
-    if(re.int_cover!==undefined) existing['Interest cover']=re.int_cover;
+    if(re.nd_ebitda!==null&&re.nd_ebitda!==undefined) existing['Net debt to EBITDA']=re.nd_ebitda;
+    if(re.int_cover!==null&&re.int_cover!==undefined) existing['Interest cover']=re.int_cover;
+    if(re.nd_fcf!==null&&re.nd_fcf!==undefined) existing['Net debt to Free cash flow']=re.nd_fcf;
+    if(re.nd_ebitda_fc!==null&&re.nd_ebitda_fc!==undefined) existing['fc Net debt to EBITDA']=re.nd_ebitda_fc;
+    if(re.int_cover_fc!==null&&re.int_cover_fc!==undefined) existing['fc Interest cover']=re.int_cover_fc;
+    if(re.nd_fcf_fc!==null&&re.nd_fcf_fc!==undefined) existing['fc Net debt to Free cash flow']=re.nd_fcf_fc;
+    if(re.close!==null&&re.close!==undefined) existing['Close Price']=re.close;
+    if(re.ctp!==null&&re.ctp!==undefined) existing['Consensus target price']=re.ctp;
+    if(re.currency) existing['Currency (results)']=re.currency;
     r1map[rtidm]=existing;
   }
   var rows3=exState.rows3||[];
@@ -1548,8 +1577,8 @@ function openPopup(tidm){
   var nd=fv(r3['Net debt to EBITDA']),ndFc=fv(r3['fc Net debt to EBITDA']);
   var ic=fv(r3['Interest cover']),icFc=fv(r3['fc Interest cover']);
   var ndFcf=fv(r3['Net debt to Free cash flow']),ndFcfFc=fv(r3['fc Net debt to Free cash flow']);
-  var price=fv(r2['Close'])||fv(r1['Close Price'])||(liveData[tidm]&&liveData[tidm].price)||null;
-  var ctp=fv(r2['Consensus target price']);
+  var price=fv(r2['Close'])||fv(r1['Close Price'])||(f5&&f5.price?f5.price:null)||(f5&&f5.close_p?f5.close_p:null)||null;
+  var ctp=fv(r2['Consensus target price'])||(f5&&f5.ctp?f5.ctp:null);
   var upside=price&&ctp?((ctp/price-1)*100):null;
   var currency=(r2['Currency (results)']||'').trim();
   var currBadge=(currency&&currency!=='GBP'&&currency!=='p')?'<span style="background:var(--amber-dim);color:var(--amber);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;">'+currency+'</span>':'';
