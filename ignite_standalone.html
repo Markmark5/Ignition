@@ -413,7 +413,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <div id="empty-state">
           <div id="empty-icon">⚡</div>
           <div id="empty-title">Ready to Ignite</div>
-          <div id="empty-sub">Configure your Google Sheets URLs above, then press <strong style="color:var(--amber);">Load Data</strong> to fetch live File 5 data and run the Ignition screener.</div>
+          <div id="empty-sub">Pull GitHub data via &#9729; GitHub, then press <strong style="color:var(--amber);">Load Data</strong> to ignite the screener.</div>
         </div>
       </td></tr>
     </tbody>
@@ -1393,7 +1393,7 @@ function ignMaCell(v,label){
 }
 function ignRsi(v){
   if(!v) return '<span style="color:var(--text-dim)">—</span>';
-  var col=(v>=50&&v<=70)?'var(--green)':v>70?'var(--amber)':'var(--red)';
+  var col=v<35?'var(--green)':v>69?'var(--red)':'var(--amber)';
   return '<span style="color:'+col+';font-weight:600;">'+v.toFixed(0)+'</span>';
 }
 function ignMcap(v){
@@ -1517,24 +1517,31 @@ function openPopup(tidm){
     function richRev(key){ return rich.rev&&rich.rev[key]!==undefined?rich.rev[key]:null; }
     function richPbt(key){ return rich.pbt&&rich.pbt[key]!==undefined?rich.pbt[key]:null; }
     /* Build r1-compatible object from richCache */
+    var isH1=(qtr==='Q2'||qtr==='Q3');
+    /* Q routing: Q2/Q3=H1 latest (FY act=last completed FY=f5 values),
+       Q1/Q4=H2 latest (FY act=H1+H2 complete) */
     var richR1={
       'TIDM':tidm,
-      'FY EPS': richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):null,
+      /* FY act: Q4/Q1 = H1+H2 complete; Q2/Q3 = use f5.eps_act (last completed FY) */
+      'FY EPS': isH1?(f5.eps_act||null):(richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):null),
       '1y ago FY EPS': richEps('1y_h1')!==null&&richEps('1y_h2')!==null?(richEps('1y_h1')+richEps('1y_h2')):null,
       '2y ago FY EPS': richEps('2y_h1')!==null&&richEps('2y_h2')!==null?(richEps('2y_h1')+richEps('2y_h2')):null,
       'H1 EPS': richEps('cur_h1'), '1y ago H1 EPS': richEps('1y_h1'),
       '2y ago H1 EPS': richEps('2y_h1'), '3y ago H1 EPS': richEps('3y_h1'),
       'H2 EPS': richEps('cur_h2'), '1y ago H2 EPS': richEps('1y_h2'),
       '2y ago H2 EPS': richEps('2y_h2'), '3y ago H2 EPS': richEps('3y_h2'),
-      'fc EPS': rich.eps&&rich.eps.fc1, '2y fc EPS': rich.eps&&rich.eps.fc2,
-      'FY Turnover (m)': richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):null,
+      'fc EPS': (rich.eps&&rich.eps.fc1!=null)?rich.eps.fc1:(f5.fc_eps||null),
+      '2y fc EPS': (rich.eps&&rich.eps.fc2!=null)?rich.eps.fc2:null,
+      /* FY Rev act: same Q routing */
+      'FY Turnover (m)': isH1?(f5.rev_act||null):(richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):null),
       '1y ago FY Turnover (m)': richRev('1y_h1')!==null&&richRev('1y_h2')!==null?(richRev('1y_h1')+richRev('1y_h2')):null,
       '2y ago FY Turnover (m)': richRev('2y_h1')!==null&&richRev('2y_h2')!==null?(richRev('2y_h1')+richRev('2y_h2')):null,
       'H1 Turnover (m)': richRev('cur_h1'), '1y ago H1 Turnover (m)': richRev('1y_h1'),
       '2y ago H1 Turnover (m)': richRev('2y_h1'), '3y ago H1 Turnover (m)': richRev('3y_h1'),
       'H2 Turnover (m)': richRev('cur_h2'), '1y ago H2 Turnover (m)': richRev('1y_h2'),
       '2y ago H2 Turnover (m)': richRev('2y_h2'), '3y ago H2 Turnover (m)': richRev('3y_h2'),
-      'fc Turnover (m)': rich.rev&&rich.rev.fc1, '2y fc Turnover (m)': rich.rev&&rich.rev.fc2,
+      'fc Turnover (m)': (rich.rev&&rich.rev.fc1!=null)?rich.rev.fc1:(f5.fc_rev||null),
+      '2y fc Turnover (m)': (rich.rev&&rich.rev.fc2!=null)?rich.rev.fc2:null,
     };
     /* Merge richR1 into r1 (richCache takes priority) */
     for(var rk in richR1){ if(richR1[rk]!==null&&richR1[rk]!==undefined) r1[rk]=richR1[rk]; }
@@ -1621,7 +1628,7 @@ function openPopup(tidm){
           +'<span style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--amber);">'+tidm+'</span>'
           +'<span style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-primary);">'+cand.name+'</span>'
         +'</div>'
-        +'<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+cand.sector+' · '+idxShort+currBadge+'</div>'
+        +'<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+cand.sector+' · '+idxShort+(cand.qtr?' · <span style="color:var(--amber);">'+cand.qtr+'</span>':'')+currBadge+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:18px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
@@ -1723,7 +1730,7 @@ function openPopup(tidm){
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">'
         +'<div style="background:var(--surface2);border-radius:6px;padding:10px;text-align:center;border:1px solid var(--border);">'
           +'<div style="font-size:9px;color:var(--text-dim);margin-bottom:4px;">RSI</div>'
-          +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:'+(cand.rsi&&cand.rsi>=50&&cand.rsi<=70?'var(--green)':cand.rsi&&cand.rsi>70?'var(--amber)':'var(--red)')+';">'+(cand.rsi?cand.rsi.toFixed(0):'—')+'</div>'
+          +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:'+(cand.rsi&&cand.rsi<35?'var(--green)':cand.rsi&&cand.rsi>69?'var(--red)':'var(--amber)')+';">'+(cand.rsi?cand.rsi.toFixed(0):'—')+'</div>'
         +'</div>'
         +'<div style="background:var(--amber-dim);border-radius:6px;padding:10px;text-align:center;border:1px solid var(--amber-mid);">'
           +'<div style="font-size:9px;color:var(--amber);margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Ignition</div>'
