@@ -1513,12 +1513,14 @@ function openPopup(tidm){
   var r2=r2m[tidm]||{};
   var r3=r3m[tidm]||{};
   /* Overlay richCache data onto r1/r2/r3 fallbacks */
+  var f5pre=ignFile5Map[tidm]||{};
+  var qtrPre=(f5pre.qtr||'').trim();
   if(rich){
     function richEps(key){ return rich.eps&&rich.eps[key]!==undefined?rich.eps[key]:null; }
     function richRev(key){ return rich.rev&&rich.rev[key]!==undefined?rich.rev[key]:null; }
     function richPbt(key){ return rich.pbt&&rich.pbt[key]!==undefined?rich.pbt[key]:null; }
     /* Build r1-compatible object from richCache */
-    var isH1=(qtr==='Q2'||qtr==='Q3');
+    var isH1=(qtrPre==='Q2'||qtrPre==='Q3');
     /* Q routing: Q2/Q3=H1 latest (FY act=last completed FY=f5 values),
        Q1/Q4=H2 latest (FY act=H1+H2 complete) */
     var richR1={
