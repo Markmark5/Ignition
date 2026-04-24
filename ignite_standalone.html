@@ -1676,7 +1676,7 @@ function openPopup(tidm){
           +'<th style="'+thStyle('var(--text-dim)')+'">FY act</th>'
           +'<th style="'+thStyle('var(--amber)')+'">fc FY1</th>'
           +'<th style="'+thStyle('var(--amber)')+'">fc FY2</th>'
-          +'<th style="'+thStyle('var(--green)')+'">YoY%</th>'
+          
           +'<th style="'+thStyle('var(--amber)')+'">fc uplift%</th>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
@@ -1685,7 +1685,7 @@ function openPopup(tidm){
           +'<td style="'+tdStyle()+'">'+fmtN(fyE_cur,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcEps,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcEps2,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtC(chg(fyE_cur,fyE_1y),1,'%')+'</td>'
+          
           +'<td style="'+tdStyle()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):(fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null)):null,1,'%')+'</td>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">Revenue (m)</td>'
@@ -1694,7 +1694,7 @@ function openPopup(tidm){
           +'<td style="'+tdStyle()+'">'+fmtN(fyR_cur,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev2,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtC(chg(fyR_cur,fyR_1y),1,'%')+'</td>'
+          
           +'<td style="'+tdStyle()+'">'+fmtC(fcRev!==null?(fyR_cur!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):(fyR_1y!==null&&fyR_1y!==0?chg(fcRev,fyR_1y):null)):null,1,'%')+'</td>'
         +'</tr>'
       +'</table>'
