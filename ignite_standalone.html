@@ -393,19 +393,19 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-left" style="width:32px;" onclick="ignSort('rank')">#</th>
         <th class="th th-left" style="width:74px;" onclick="ignSort('tidm')">TIDM</th>
         <th class="th th-left" style="min-width:145px;" onclick="ignSort('name')">Name</th>
-        <th class="th th-left" style="min-width:100px;" onclick="ignSort('sector')">Sector</th>
+        <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
         <th class="th" style="width:58px;" onclick="ignSort('yr_end')">Yr End</th>
         <th class="th" style="width:30px;" onclick="ignSort('qtr')">Q</th>
         <th class="th" style="width:40px;">New Hi</th>
-        <th class="th th-amber" style="width:165px;" id="rank-th"><span id="ign-sort-lbl" onclick="ignCycleSort()" style="cursor:pointer;">⚡ Rank</span></th>
-        <th class="th th-blue" style="width:40px;border-left:2px solid var(--border-bright);" title="200d MA">LT</th>
-        <th class="th th-blue" style="width:40px;" title="100d MA">MT</th>
-        <th class="th th-blue" style="width:40px;" title="50d MA">ST</th>
-        <th class="th th-blue" style="width:38px;" onclick="ignSort('rsi')">RSI</th>
-        <th class="th" style="width:74px;border-left:1px solid var(--border-bright);" onclick="ignSort('broker_mom')">Broker Mom</th>
-        <th class="th" style="width:54px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
-        <th class="th" style="width:46px;" onclick="ignSort('shares')">Shares</th>
-        <th class="th" style="width:42px;" onclick="ignSort('idx_mem')">Index</th>
+        <th class="th th-amber" style="width:190px;" id="rank-th"><span id="ign-sort-lbl" onclick="ignCycleSort()" style="cursor:pointer;">⚡ Rank</span></th>
+        <th class="th th-blue" style="width:46px;border-left:2px solid var(--border-bright);" title="200d MA">LT</th>
+        <th class="th th-blue" style="width:46px;" title="100d MA">MT</th>
+        <th class="th th-blue" style="width:46px;" title="50d MA">ST</th>
+        <th class="th th-blue" style="width:44px;" onclick="ignSort('rsi')">RSI</th>
+        <th class="th" style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('broker_mom')">Broker Mom</th>
+        <th class="th" style="width:68px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
+        <th class="th" style="width:54px;" onclick="ignSort('shares')">Shares</th>
+        <th class="th" style="width:50px;" onclick="ignSort('idx_mem')">Index</th>
       </tr>
     </thead>
     <tbody id="ign-body">
@@ -663,19 +663,19 @@ function parseTxtBlocks(text, fname){
     var sec=block.substring(hidx,hidx+700);
     var d={};
     var patterns=[
-      ['3y',/3y ago\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
+      ['3y',/3y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
       ['2y',/2y ago\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
       ['1y',/1y ago\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
       ['cur',/Current\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
-      ['fc1',/FY1 fc\s+\S+\s*:\s*([\d.]+)/],
-      ['fc2',/FY2 fc\s+\S+\s*:\s*([\d.]+)/],
+      ['fc1',/FY1 fc\s+\S+\s*:\s*([\d,.]+)/],
+      ['fc2',/FY2 fc\s+\S+\s*:\s*([\d,.]+)/],
     ];
     for(var pi=0;pi<patterns.length;pi++){
       var key=patterns[pi][0],pat=patterns[pi][1];
       var m=sec.match(pat);
       if(m){
-        if(key==='fc1'||key==='fc2') d[key]=parseFloat(m[1]);
-        else{d[key+'_h1']=parseFloat(m[1]);d[key+'_h2']=parseFloat(m[2]);}
+        if(key==='fc1'||key==='fc2') d[key]=parseFloat(m[1].replace(/,/g,''));
+        else{d[key+'_h1']=parseFloat(m[1].replace(/,/g,''));d[key+'_h2']=parseFloat(m[2].replace(/,/g,''));}
       }
     }
     return d;
@@ -688,7 +688,7 @@ function parseTxtBlocks(text, fname){
   for(var bi=1;bi<blocks.length;bi++){
     var block='===='+blocks[bi];
     try{
-      var tidmM=block.match(/— (\w+)/);   if(!tidmM) continue;
+      var tidmM=block.match(/— ([\w.]+)/); if(!tidmM) continue;
       var tidm=tidmM[1];
 
       var entry={
@@ -728,7 +728,7 @@ function parseTxtBlocks(text, fname){
       var epsPts=[];
       if(snapIdx>=0){
         var snapSec=block.substring(snapIdx);
-        var snapRows=snapSec.match(/(\d{2} \w+ \d{2})\s+([\d.]*)\s+([\d.]*)\s+([\d.]+)/g)||[];
+        var snapRows=snapSec.match(/(\d{2} \w+ \d{2})\s+([\d.]*)\s+([\d,.]*)\s+([\d.]+)/g)||[];
         snapCount+=snapRows.length;
         for(var si=0;si<snapRows.length;si++){
           var rm=snapRows[si].match(/(\d{2} \w+ \d{2})\s+([\d.]*)\s+([\d.]*)\s+([\d.]+)/);
