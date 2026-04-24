@@ -343,6 +343,16 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     <input class="ctrl-input" id="ign-aim-rev" type="number" value="5" min="0" max="50">
   </div>
   <label class="ctrl-check"><input type="checkbox" id="ign-excl-lt" checked> Excl falling 200d</label>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" title="Half beat vs prior yr weight %">Beat%</span>
+    <input class="ctrl-input" id="w-beat" type="number" value="25" min="5" max="60" style="width:34px;">
+    <span class="ctrl-label" title="fc EPS growth weight %">fcEPS%</span>
+    <input class="ctrl-input" id="w-eg" type="number" value="20" min="5" max="50" style="width:34px;">
+    <span class="ctrl-label" title="fc Rev growth weight %">fcRev%</span>
+    <input class="ctrl-input" id="w-rg" type="number" value="20" min="5" max="50" style="width:34px;">
+    <span id="w-total-badge" style="font-size:9px;color:var(--green);padding:2px 6px;background:var(--green-dim);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">✓ 100%</span>
+  </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
     <span style="font-size:9px;color:var(--text-dim);" id="last-refresh"></span>
     <span id="sort-mode-badge" style="display:none;background:var(--amber-dim);border:1px solid var(--amber-mid);color:var(--amber);border-radius:10px;padding:2px 9px;font-size:9px;cursor:pointer;" onclick="ignCycleSort()">⚡ Rank</span>
@@ -667,16 +677,20 @@ function parseTxtBlocks(text, fname){
   function parseHalves(block, header){
     var hidx=block.indexOf(header);
     if(hidx<0) return {};
-    var sec=block.substring(hidx,hidx+1200);
+    /* Stop at the next section header so we never bleed into adjacent sections */
+    var nextSec=block.indexOf('\n──',hidx+4);
+    var sec=nextSec>hidx?block.substring(hidx,nextSec):block.substring(hidx,hidx+1200);
     var d={};
     function pHalf(s){var v=parseFloat((s||'').replace(/,/g,'').trim());return isNaN(v)?null:v;}
+    /* Use section-specific fc keyword to prevent cross-section regex matches */
+    var fcWord=header.indexOf('EPS')!==-1?'EPS':header.indexOf('REVENUE')!==-1||header.indexOf('Revenue')!==-1?'Revenue':'\\S+';
     var patterns=[
       ['3y',/3y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
       ['2y',/2y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
       ['1y',/1y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
       ['cur',/Current\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([^\s\u2192]+)/],
-      ['fc1',/FY1 fc\s+\S+\s*:\s*([\d,.]+)/],
-      ['fc2',/FY2 fc\s+\S+\s*:\s*([\d,.]+)/],
+      ['fc1',new RegExp('FY1 fc\\s+'+fcWord+'\\s*:\\s*([\\d,.]+)')],
+      ['fc2',new RegExp('FY2 fc\\s+'+fcWord+'\\s*:\\s*([\\d,.]+)')],
     ];
     for(var pi=0;pi<patterns.length;pi++){
       var key=patterns[pi][0],pat=patterns[pi][1];
@@ -1099,8 +1113,34 @@ function resetGhToken(){
 }
 function pullFromGitHub(){closeGhSetup();fetchFromGitHub();}
 
-function ignRun(){
-  if(!Object.keys(ignFile5Map).length){
+function updateWeightBadge(){
+  var beat=parseFloat(document.getElementById('w-beat').value)||25;
+  var eg=parseFloat(document.getElementById('w-eg').value)||20;
+  var rg=parseFloat(document.getElementById('w-rg').value)||20;
+  var total=beat+eg+rg;
+  var remaining=100-total;
+  var badge=document.getElementById('w-total-badge');
+  if(!badge) return;
+  if(total>100){
+    badge.textContent='✗ '+total+'%';
+    badge.style.color='var(--red)';badge.style.background='var(--red-dim)';badge.style.borderColor='rgba(239,68,68,0.2)';
+  } else {
+    badge.textContent='rem '+remaining+'%';
+    badge.style.color=remaining>=15?'var(--green)':'var(--amber)';
+    badge.style.background=remaining>=15?'var(--green-dim)':'var(--amber-dim)';
+    badge.style.borderColor=remaining>=15?'rgba(16,185,129,0.2)':'rgba(245,158,11,0.3)';
+  }
+}
+/* Wire weight inputs */
+(function(){
+  ['w-beat','w-eg','w-rg'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener('input',updateWeightBadge);
+  });
+  updateWeightBadge();
+})();
+
+function ignRun(){  if(!Object.keys(ignFile5Map).length){
     showToast('Load data first','warn');return;
   }
   var f350e=parseFloat(document.getElementById('ign-f350-eps').value)||5;
@@ -1108,6 +1148,17 @@ function ignRun(){
   var aime=parseFloat(document.getElementById('ign-aim-eps').value)||8;
   var aimr=parseFloat(document.getElementById('ign-aim-rev').value)||5;
   var exclLT=document.getElementById('ign-excl-lt').checked;
+
+  /* Read user-adjustable base weights — remaining 55% fixed across other components */
+  var wBeat=Math.max(5,Math.min(60,parseFloat(document.getElementById('w-beat').value)||25))/100;
+  var wEg  =Math.max(5,Math.min(50,parseFloat(document.getElementById('w-eg').value)||20))/100;
+  var wRg  =Math.max(5,Math.min(50,parseFloat(document.getElementById('w-rg').value)||20))/100;
+  /* Fixed weights for remaining components — scale proportionally to fill remaining space */
+  var wFixed=1-(wBeat+wEg+wRg);  /* should be 0.35 at defaults */
+  var wScale=wFixed/0.35;         /* scale factor vs default remaining 35% */
+  var BASE_WEIGHTS={eg:wEg,rg:wRg,ea:0.08*wScale,ra:0.05*wScale,bp:wBeat,bk:0.12*wScale,ha:0.10*wScale};
+  /* Store on window so buildScoreBreakdown can read them */
+  window._ignWeights=BASE_WEIGHTS;
 
   document.getElementById('ign-body').innerHTML='<tr><td colspan="16" style="padding:40px;text-align:center;color:var(--text-dim);font-family:var(--font-display);">Calculating scores…</td></tr>';
   ignSelRow=null;
@@ -1211,7 +1262,7 @@ function ignRun(){
         var fcEpsGCapped=(fcRevG>0)?Math.min(fcEpsG,Math.max(50,fcRevG*4)):Math.min(fcEpsG,50);
         var fyEps1y=ignF(r1['1y ago FY EPS']),fyRev1y=ignF(r1['1y ago FY Turnover (m)']);
         var fyEps2y=ignF(r1['2y ago FY EPS']),fyRev2y=ignF(r1['2y ago FY Turnover (m)']);
-        /* Q1/Q4: FY cur complete → use 1y_ago→cur; Q2/Q3: FY cur null → use 2y_ago→1y_ago */
+        /* Q1/Q4: FY cur complete → 1y_ago→cur; Q2/Q3: FY cur null → 2y_ago→1y_ago */
         var fyEpsCur=ignF(r1['FY EPS']),fyRevCur=ignF(r1['FY Turnover (m)']);
         var epsActGr=fyEpsCur!==null
           ?(fyEps1y&&fyEps1y!==0?ignGrowthPct(fyEps1y,fyEpsCur):null)
@@ -1223,17 +1274,22 @@ function ignRun(){
         var revAccel=revActGr!==null?fcRevG-revActGr:null;
         var beat=ignHalfBeat(r1,qtr);
         var beatPrior=beat?beat.vsPrior:null;
-        var eps1y=ignF(r1['1y ago FY EPS']),eps2y=ignF(r1['2y ago FY EPS']);
-        var rev1y=ignF(r1['1y ago FY Turnover (m)']),rev2y=ignF(r1['2y ago FY Turnover (m)']);
-        var hE=[fyEps,eps1y,eps2y].filter(function(x){return x!==null&&x>0;});
-        var hR=[fyRev,rev1y,rev2y].filter(function(x){return x!==null&&x>0;});
+        var eps1y=fyEps1y,eps2y=fyEps2y;
+        var rev1y=fyRev1y,rev2y=fyRev2y;
+        /* Breakout: always compare fc vs prior max (works for all quarters)
+           Q1/Q4: prior max from [eps1y, eps2y]; fc vs those
+           Q2/Q3: same — fyEpsCur is null so we use fc directly vs historical max */
         var hEprior=[eps1y,eps2y].filter(function(x){return x!==null&&x>0;});
         var hRprior=[rev1y,rev2y].filter(function(x){return x!==null&&x>0;});
         var hEmx=hEprior.length?Math.max.apply(null,hEprior):null;
         var hRmx=hRprior.length?Math.max.apply(null,hRprior):null;
+        /* Use fc for breakout numerator — valid for both Q1/Q4 and Q2/Q3 */
         var breakoutPct=null;
-        if(hEmx&&hEmx>0&&fyEps&&fyEps>0&&hRmx&&hRmx>0&&fyRev&&fyRev>0)
-          breakoutPct=((fyEps-hEmx)/hEmx*100+(fyRev-hRmx)/hRmx*100)/2;
+        if(hEmx&&hEmx>0&&fcEpsR1&&fcEpsR1>0&&hRmx&&hRmx>0&&fcRevR1&&fcRevR1>0)
+          breakoutPct=((fcEpsR1-hEmx)/hEmx*100+(fcRevR1-hRmx)/hRmx*100)/2;
+        /* eps/rev new high arrays — use fc as the numerator vs historical */
+        var hE=[fcEpsR1].concat(hEprior).filter(function(x){return x!==null&&x>0;});
+        var hR=[fcRevR1].concat(hRprior).filter(function(x){return x!==null&&x>0;});
         var halfAccel=null;
         var useH1b=(qtr==='Q2'||qtr==='Q3'),hpfx=useH1b?'H1':'H2';
         var hEc=ignF(r1[hpfx+' EPS']),hEp1b=ignF(r1['1y ago '+hpfx+' EPS']),hEp2b=ignF(r1['2y ago '+hpfx+' EPS']);
@@ -1246,8 +1302,8 @@ function ignRun(){
           yr_end:f5.yr_end,qtr:qtr,
           fc_eps_g:fcEpsG,fc_eps_g_capped:fcEpsGCapped,fc_rev_g:fcRevG,
           eps_accel:epsAccel,rev_accel:revAccel,beat_prior:beatPrior,beat_3yr:beat?beat.vs3yr:null,
-          eps_new_high:hE.length&&fcEpsR1&&fcEpsR1>Math.max.apply(null,hE)?1:0,
-          rev_new_high:hR.length&&fcRevR1&&fcRevR1>Math.max.apply(null,hR)?1:0,
+          eps_new_high:hEprior.length&&fcEpsR1&&fcEpsR1>Math.max.apply(null,hEprior)?1:0,
+          rev_new_high:hRprior.length&&fcRevR1&&fcRevR1>Math.max.apply(null,hRprior)?1:0,
           acq_flag:acq!==0&&fyRev&&fyRev>0&&Math.abs(acq)>fyRev*0.15,
           breakout_pct:breakoutPct,half_accel:halfAccel,
           lt:f5.lt,mt:f5.mt,st:f5.st,rsi:f5.rsi,
@@ -1300,7 +1356,8 @@ function ignRun(){
         var aHA=cands.filter(function(c){return c.half_accel!==null;}).map(function(c){return c.half_accel;});
         for(var jj=0;jj<cands.length;jj++){
           var c=cands[jj];
-          var w={eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
+          var bw=window._ignWeights||{eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
+          var w={eg:bw.eg,rg:bw.rg,ea:bw.ea,ra:bw.ra,bp:bw.bp,bk:bw.bk,ha:bw.ha};
           if(c.eps_accel===null){w.eg+=w.ea*0.6;w.rg+=w.ea*0.4;w.ea=0;}
           if(c.rev_accel===null){w.rg+=w.ra*0.7;w.eg+=w.ra*0.3;w.ra=0;}
           if(c.beat_prior===null){w.eg+=w.bp*0.6;w.rg+=w.bp*0.4;w.bp=0;}
@@ -1773,16 +1830,15 @@ function openPopup(tidm){
 function buildScoreBreakdown(cand,r1){
   r1=r1||{};
   var f5=ignFile5Map[cand.tidm]||{};
-  var isH1=(cand.qtr==='Q2'||cand.qtr==='Q3');
-  var hpfx=isH1?'H1':'H2';
+  var isH1=(cand.qtr==='Q2'||cand.qtr==='Q3'),hpfx=isH1?'H1':'H2';
   var fyE_cur=ignF(r1['FY EPS']),fyE_1y=ignF(r1['1y ago FY EPS']),fyE_2y=ignF(r1['2y ago FY EPS']);
   var fyR_cur=ignF(r1['FY Turnover (m)']),fyR_1y=ignF(r1['1y ago FY Turnover (m)']),fyR_2y=ignF(r1['2y ago FY Turnover (m)']);
   var hE_cur=ignF(r1[hpfx+' EPS']),hE_1y=ignF(r1['1y ago '+hpfx+' EPS']),hE_2y=ignF(r1['2y ago '+hpfx+' EPS']);
   var fcEpsG_d=ignGrowthPct(f5.eps_act,f5.fc_eps);
   var fcRevG_d=(f5.rev_act&&f5.rev_act>0&&f5.fc_rev)?((f5.fc_rev/f5.rev_act-1)*100):null;
+  var accelBase=isH1?'2y→1y FY (Q2/Q3)':'1y→cur FY (Q1/Q4)';
   var epsActGr_d=fyE_cur!==null?(fyE_1y&&fyE_1y!==0?ignGrowthPct(fyE_1y,fyE_cur):null):(fyE_2y&&fyE_1y&&fyE_2y!==0?ignGrowthPct(fyE_2y,fyE_1y):null);
   var revActGr_d=fyR_cur!==null?(fyR_1y&&fyR_1y>0?((fyR_cur/fyR_1y-1)*100):null):(fyR_2y&&fyR_1y&&fyR_2y>0?((fyR_1y/fyR_2y-1)*100):null);
-  var accelBase=isH1?'2y→1y FY (Q2/Q3)':'1y→cur FY (Q1/Q4)';
   function dn(v){return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(1)+'</span>';}
   var dbg=''
     +'<details style="margin-bottom:10px;">'
@@ -1805,7 +1861,9 @@ function buildScoreBreakdown(cand,r1){
 
   if(cand.trailing) return dbg+buildTrailBreakdown(cand);
 
-  var w={eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
+  /* Use live weights from controls */
+  var bw=window._ignWeights||{eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
+  var w={eg:bw.eg,rg:bw.rg,ea:bw.ea,ra:bw.ra,bp:bw.bp,bk:bw.bk,ha:bw.ha};
   var notes={ea:'',ra:'',bp:'',bk:'',ha:''};
   if(cand.eps_accel===null){notes.ea='redistributed';w.eg+=w.ea*0.6;w.rg+=w.ea*0.4;w.ea=0;}
   if(cand.rev_accel===null){notes.ra='redistributed';w.rg+=w.ra*0.7;w.eg+=w.ra*0.3;w.ra=0;}
@@ -1841,7 +1899,6 @@ function buildScoreBreakdown(cand,r1){
   var mc=(cand.lt?1:0)+(cand.mt?1:0)+(cand.st?1:0);
   var maMult=mc===3?1:mc===2?.85:mc===1?.70:.55;
   var rnk=Math.round(ign*maMult*10)/10;
-
   function pL(v){return v===null?'—':v.toFixed(1)+'%';}
   function row(lbl,val,wt,pts,note,dim){
     var has=pts!==null;
@@ -1863,12 +1920,10 @@ function buildScoreBreakdown(cand,r1){
       +'<td></td><td style="padding:3px 0 3px 6px;font-size:9px;font-weight:700;color:'+col+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
       +'<td style="padding:3px 0 3px 6px;font-size:8px;color:var(--text-dim);">'+(note||'')+'</td></tr>';
   }
-
   var h=dbg;
   h+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Score Breakdown</div>';
   h+='<table style="width:100%;border-collapse:collapse;">'
-    +'<tr style="border-bottom:1px solid var(--border);">'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;">Component</th>'
+    +'<tr style="border-bottom:1px solid var(--border);"><th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;">Component</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Value</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Wt</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Pctile</th>'
@@ -1876,7 +1931,7 @@ function buildScoreBreakdown(cand,r1){
   h+=row('Half beat vs prior yr',pL(cand.beat_prior),w.bp,pBP,cand.beat_prior!==null?cand.beat_prior.toFixed(0)+'% beat':notes.bp,cand.beat_prior===null);
   h+=row('fc EPS growth',pL(cand.fc_eps_g)+(cand.fc_eps_g_capped!==cand.fc_eps_g?' →'+pL(cand.fc_eps_g_capped):''),w.eg,pEG,'capped 4×Rev','');
   h+=row('fc Revenue growth',pL(cand.fc_rev_g),w.rg,pRG,'','');
-  h+=row('EPS & Rev breakout',pL(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'vs prior max',cand.breakout_pct===null);
+  h+=row('EPS & Rev breakout',pL(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'fc vs prior max',cand.breakout_pct===null);
   h+=row('Half-yr accel',pL(cand.half_accel),w.ha,pHA,cand.half_accel===null?notes.ha:'H1/H2 actuals',cand.half_accel===null);
   h+=row('EPS accel (fc vs act)',pL(cand.eps_accel),w.ea,pEA,cand.eps_accel===null?notes.ea:accelBase,cand.eps_accel===null);
   h+=row('Rev accel',pL(cand.rev_accel),w.ra,pRA,cand.rev_accel===null?notes.ra:accelBase,cand.rev_accel===null);
