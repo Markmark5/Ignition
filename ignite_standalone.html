@@ -1134,10 +1134,10 @@ function ignRun(){
       if(re.eps['2y_h2']!==undefined) existing['2y ago H2 EPS']=re.eps['2y_h2'];
       if(re.eps['3y_h1']!==undefined) existing['3y ago H1 EPS']=re.eps['3y_h1'];
       if(re.eps['3y_h2']!==undefined) existing['3y ago H2 EPS']=re.eps['3y_h2'];
-      /* Derive FY from H1+H2 */
-      if(re.eps.cur_h1!==undefined&&re.eps.cur_h2!==undefined) existing['FY EPS']=re.eps.cur_h1+re.eps.cur_h2;
-      if(re.eps['1y_h1']!==undefined&&re.eps['1y_h2']!==undefined) existing['1y ago FY EPS']=re.eps['1y_h1']+re.eps['1y_h2'];
-      if(re.eps['2y_h1']!==undefined&&re.eps['2y_h2']!==undefined) existing['2y ago FY EPS']=re.eps['2y_h1']+re.eps['2y_h2'];
+      /* Derive FY from H1+H2 — only when BOTH halves are real numbers (not null) */
+      if(re.eps.cur_h1!==null&&re.eps.cur_h1!==undefined&&re.eps.cur_h2!==null&&re.eps.cur_h2!==undefined) existing['FY EPS']=re.eps.cur_h1+re.eps.cur_h2;
+      if(re.eps['1y_h1']!==null&&re.eps['1y_h1']!==undefined&&re.eps['1y_h2']!==null&&re.eps['1y_h2']!==undefined) existing['1y ago FY EPS']=re.eps['1y_h1']+re.eps['1y_h2'];
+      if(re.eps['2y_h1']!==null&&re.eps['2y_h1']!==undefined&&re.eps['2y_h2']!==null&&re.eps['2y_h2']!==undefined) existing['2y ago FY EPS']=re.eps['2y_h1']+re.eps['2y_h2'];
       if(re.eps.fc1!==undefined) existing['fc EPS']=re.eps.fc1;
       if(re.eps.fc2!==undefined) existing['2y fc EPS']=re.eps.fc2;
     }
@@ -1150,9 +1150,9 @@ function ignRun(){
       if(re.rev['2y_h2']!==undefined) existing['2y ago H2 Turnover (m)']=re.rev['2y_h2'];
       if(re.rev['3y_h1']!==undefined) existing['3y ago H1 Turnover (m)']=re.rev['3y_h1'];
       if(re.rev['3y_h2']!==undefined) existing['3y ago H2 Turnover (m)']=re.rev['3y_h2'];
-      if(re.rev.cur_h1!==undefined&&re.rev.cur_h2!==undefined) existing['FY Turnover (m)']=re.rev.cur_h1+re.rev.cur_h2;
-      if(re.rev['1y_h1']!==undefined&&re.rev['1y_h2']!==undefined) existing['1y ago FY Turnover (m)']=re.rev['1y_h1']+re.rev['1y_h2'];
-      if(re.rev['2y_h1']!==undefined&&re.rev['2y_h2']!==undefined) existing['2y ago FY Turnover (m)']=re.rev['2y_h1']+re.rev['2y_h2'];
+      if(re.rev.cur_h1!==null&&re.rev.cur_h1!==undefined&&re.rev.cur_h2!==null&&re.rev.cur_h2!==undefined) existing['FY Turnover (m)']=re.rev.cur_h1+re.rev.cur_h2;
+      if(re.rev['1y_h1']!==null&&re.rev['1y_h1']!==undefined&&re.rev['1y_h2']!==null&&re.rev['1y_h2']!==undefined) existing['1y ago FY Turnover (m)']=re.rev['1y_h1']+re.rev['1y_h2'];
+      if(re.rev['2y_h1']!==null&&re.rev['2y_h1']!==undefined&&re.rev['2y_h2']!==null&&re.rev['2y_h2']!==undefined) existing['2y ago FY Turnover (m)']=re.rev['2y_h1']+re.rev['2y_h2'];
       if(re.rev.fc1!==undefined) existing['fc Turnover (m)']=re.rev.fc1;
       if(re.rev.fc2!==undefined) existing['2y fc Turnover (m)']=re.rev.fc2;
     }
