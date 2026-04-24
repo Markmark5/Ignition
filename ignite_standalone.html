@@ -1513,8 +1513,8 @@ function openPopup(tidm){
   var r2=r2m[tidm]||{};
   var r3=r3m[tidm]||{};
   /* Overlay richCache data onto r1/r2/r3 fallbacks */
-  var f5pre=ignFile5Map[tidm]||{};
-  var qtrPre=(f5pre.qtr||'').trim();
+  /* Use cand.qtr - already correct from scoring, shown in main table */
+  var qtrPre=(cand.qtr||'').trim();
   if(rich){
     function richEps(key){ return rich.eps&&rich.eps[key]!==undefined?rich.eps[key]:null; }
     function richRev(key){ return rich.rev&&rich.rev[key]!==undefined?rich.rev[key]:null; }
@@ -1585,7 +1585,7 @@ function openPopup(tidm){
     return (cur/prev-1)*100;
   }
 
-  var qtr=f5.qtr||'';var useH1=(qtr==='Q2'||qtr==='Q3'),half=useH1?'H1':'H2';
+  var qtr=cand.qtr||'';var useH1=(qtr==='Q2'||qtr==='Q3'),half=useH1?'H1':'H2';
   var hE_cur=fv(r1[half+' EPS']),hE_1y=fv(r1['1y ago '+half+' EPS']),hE_2y=fv(r1['2y ago '+half+' EPS']),hE_3y=fv(r1['3y ago '+half+' EPS']);
   var hR_cur=fv(r1[half+' Turnover (m)']),hR_1y=fv(r1['1y ago '+half+' Turnover (m)']),hR_2y=fv(r1['2y ago '+half+' Turnover (m)']),hR_3y=fv(r1['3y ago '+half+' Turnover (m)']);
   var hP_cur=fv(r2[half+' Pre-tax profit (m)']),hP_1y=fv(r2['1y ago '+half+' Pre-tax profit (m)']),hP_2y=fv(r2['2y ago '+half+' Pre-tax profit (m)']),hP_3y=fv(r2['3y ago '+half+' Pre-tax profit (m)']);
@@ -1596,18 +1596,19 @@ function openPopup(tidm){
   var nd=fv(r3['Net debt to EBITDA']),ndFc=fv(r3['fc Net debt to EBITDA']);
   var ic=fv(r3['Interest cover']),icFc=fv(r3['fc Interest cover']);
   var ndFcf=fv(r3['Net debt to Free cash flow']),ndFcfFc=fv(r3['fc Net debt to Free cash flow']);
-  var price=fv(r2['Close'])||fv(r1['Close Price'])||(f5&&f5.price?f5.price:null)||(f5&&f5.close_p?f5.close_p:null)||null;
-  var ctp=fv(r2['Consensus target price'])||(f5&&f5.ctp?f5.ctp:null);
+  /* Use cand directly for everything already computed during scoring */
+  var price=fv(r2['Close'])||(rich&&rich.close?rich.close:null)||(f5&&f5.close_p?f5.close_p:null)||null;
+  var ctp=fv(r2['Consensus target price'])||(rich&&rich.ctp?rich.ctp:null)||(f5&&f5.ctp?f5.ctp:null);
   var upside=price&&ctp?((ctp/price-1)*100):null;
-  var currency=(r2['Currency (results)']||'').trim();
+  var currency=(rich&&rich.currency?rich.currency:(r2['Currency (results)']||'')).trim();
   var currBadge=(currency&&currency!=='GBP'&&currency!=='p')?'<span style="background:var(--amber-dim);color:var(--amber);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;">'+currency+'</span>':'';
   var epsBreak=fyE_cur!==null&&fyE_1y!==null&&fyE_2y!==null&&fyE_cur>Math.max(fyE_1y,fyE_2y)&&fyE_cur>0;
   var revBreak=fyR_cur!==null&&fyR_1y!==null&&fyR_2y!==null&&fyR_cur>Math.max(fyR_1y,fyR_2y);
   var fcEpsBase=fyE_cur!==null?fyE_cur:fyE_1y;var fcEpsBreak=fcEps!==null&&fcEpsBase!==null&&(fyE_1y!==null||fyE_2y!==null)&&fcEps>Math.max(fcEpsBase,fyE_1y||fcEpsBase,fyE_2y||fcEpsBase)&&fcEps>0;
   var fcRevBase=fyR_cur!==null?fyR_cur:fyR_1y;var fcRevBreak=fcRev!==null&&fcRevBase!==null&&(fyR_1y!==null||fyR_2y!==null)&&fcRev>Math.max(fcRevBase,fyR_1y||fcRevBase,fyR_2y||fcRevBase);
   function bFlag(b,label){return b?'<span style="color:var(--green);font-weight:700;">✓ '+label+'</span>':'<span style="color:var(--text-dim);">— '+label+'</span>';}
-  var idxShort=cand.f350?(cand.idx_mem.indexOf('100')!==-1?'FTSE 100':'FTSE 250'):(cand.idx_mem.indexOf('AIM')!==-1?'AIM All-Share':'Small Cap');
-  var mcapStr=f5.mktcap?(f5.mktcap>=1000?'£'+(f5.mktcap/1000).toFixed(1)+'b':'£'+Math.round(f5.mktcap)+'m'):'—';
+  var idxShort=cand.f350?(cand.idx_mem.indexOf('100')!==-1?'FTSE 100':'FTSE 250'):(cand.idx_mem&&cand.idx_mem.indexOf('AIM')!==-1?'AIM All-Share':'Small Cap');
+  var mcapStr=cand.mktcap?(cand.mktcap>=1000?'£'+(cand.mktcap/1000).toFixed(1)+'b':'£'+Math.round(cand.mktcap)+'m'):'—';
 
   function thStyle(c){return 'padding:3px 8px;text-align:right;font-size:9px;color:'+c+';font-weight:600;font-family:var(--font-display);letter-spacing:.05em;';}
   function tdStyle(){return 'padding:3px 8px;text-align:right;font-size:10px;';}
@@ -1635,7 +1636,7 @@ function openPopup(tidm){
       +'</div>'
       +'<div style="display:flex;gap:18px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
-        +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(f5.shares?Math.round(f5.shares)+'m':'—')+'</div></div>'
+        +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(cand.shares?Math.round(cand.shares)+'m':'—')+'</div></div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Price</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(price?price.toFixed(0)+'p':'—')+'</div></div>'
         +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:'+(upside&&upside>0?'var(--green)':'var(--red)')+';">'+ctp.toFixed(0)+'p'+(upside!==null?' ('+fmtC(upside,0,'%')+')':'')+'</div></div>':'')
         +'<div style="text-align:center;background:var(--amber-dim);border:1px solid var(--amber-mid);border-radius:6px;padding:6px 14px;">'
