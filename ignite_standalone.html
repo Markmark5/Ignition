@@ -372,7 +372,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   </label>
   <span id="f4-name" style="font-size:9px;color:var(--text-dim);">—</span>
   <button class="btn btn-ghost" id="cache-btn" onclick="openGitHubPanel()" style="font-size:9px;padding:4px 10px;display:none;">☁ GitHub Sync</button>
-  <button class="btn btn-ghost" id="dl-cache-btn" onclick="downloadRichCache()" style="font-size:9px;padding:4px 10px;display:none;" title="Download parsed richCache as JSON for inspection">⬇ Download Cache JSON</button>
+  <button class="btn btn-ghost" id="dl-cache-btn" onclick="downloadRichCache()" style="font-size:9px;padding:4px 10px;display:none;" title="Download parsed cache as JSON">⬇ Cache JSON</button>
 </div>
 
 <!-- Legend -->
@@ -781,8 +781,8 @@ function parseTxtBlocks(text, fname){
   document.getElementById('f4-status').textContent=tickerCount+' tickers';
   var btn=document.getElementById('cache-btn');
   if(btn){btn.style.display='';btn.textContent='\u2B06 Push to GitHub';btn.style.color='var(--green)';}
-  var dlBtn=document.getElementById('dl-cache-btn');
-  if(dlBtn) dlBtn.style.display='';('\u2713 Parsed '+tickerCount+' tickers · '+snapCount.toLocaleString()+' snapshots · '+richKB+'KB','ok',4000);
+  var dlBtn=document.getElementById('dl-cache-btn');if(dlBtn)dlBtn.style.display='';
+  showToast('\u2713 Parsed '+tickerCount+' tickers · '+snapCount.toLocaleString()+' snapshots · '+richKB+'KB','ok',4000);
   if(ignData.length) ignRender();
 }
 
@@ -984,8 +984,7 @@ function fetchFromGitHub(){
       showToast('✓ Loaded from GitHub · '+(payload._meta.savedAtLabel||''),'ok',4000);
       var btn=document.getElementById('cache-btn');
       if(btn){btn.style.display='';btn.textContent='⬆ Push to GitHub';btn.style.color='var(--green)';}
-      var dlBtn2=document.getElementById('dl-cache-btn');
-      if(dlBtn2&&exState.richCache&&Object.keys(exState.richCache).length) dlBtn2.style.display='';
+      var dlBtn=document.getElementById('dl-cache-btn');if(dlBtn&&exState.richCache)dlBtn.style.display='';
       closeGhSetup();
     })
     .catch(function(e){
@@ -1211,8 +1210,18 @@ function ignRun(){
         }
         var fcEpsGCapped=(fcRevG>0)?Math.min(fcEpsG,Math.max(50,fcRevG*4)):Math.min(fcEpsG,50);
         var fyEps1y=ignF(r1['1y ago FY EPS']),fyRev1y=ignF(r1['1y ago FY Turnover (m)']);
-        var epsActGr=(fyEps1y&&fyEps&&fyEps1y!==0)?ignGrowthPct(fyEps1y,fyEps):null;
-        var revActGr=(fyRev1y&&fyRev&&fyRev1y>0)?((fyRev/fyRev1y-1)*100):null;
+        var fyEps2y=ignF(r1['2y ago FY EPS']),fyRev2y=ignF(r1['2y ago FY Turnover (m)']);
+        /* epsActGr = prior year growth rate (used to compute acceleration vs fc)
+           Q1/Q4: FY cur is complete  → measure 1y_ago → cur  (most recent actual step)
+           Q2/Q3: FY cur is null      → measure 2y_ago → 1y_ago (last completed annual step) */
+        var fyEpsCur=ignF(r1['FY EPS']);
+        var fyRevCur=ignF(r1['FY Turnover (m)']);
+        var epsActGr=fyEpsCur!==null
+          ?(fyEps1y&&fyEps1y!==0?ignGrowthPct(fyEps1y,fyEpsCur):null)
+          :(fyEps2y&&fyEps1y&&fyEps2y!==0?ignGrowthPct(fyEps2y,fyEps1y):null);
+        var revActGr=fyRevCur!==null
+          ?(fyRev1y&&fyRev1y>0?((fyRevCur/fyRev1y-1)*100):null)
+          :(fyRev2y&&fyRev1y&&fyRev2y>0?((fyRev1y/fyRev2y-1)*100):null);
         var epsAccel=epsActGr!==null?fcEpsG-epsActGr:null;
         var revAccel=revActGr!==null?fcRevG-revActGr:null;
         var beat=ignHalfBeat(r1,qtr);
@@ -1764,64 +1773,63 @@ function openPopup(tidm){
   document.getElementById('popup-overlay').classList.add('open');
 }
 
-// ── Score Breakdown (right panel) ──
-function buildScoreBreakdown(cand, r1){
+// ── Score Breakdown ──
+function buildScoreBreakdown(cand,r1){
   r1=r1||{};
   var f5=ignFile5Map[cand.tidm]||{};
+  var isH1=(cand.qtr==='Q2'||cand.qtr==='Q3');
+  var hpfx=isH1?'H1':'H2';
 
-  // ── debug: raw inputs used at score time ──
-  var fyE_cur_dbg=ignF(r1['FY EPS']);
-  var fyE_1y_dbg =ignF(r1['1y ago FY EPS']);
-  var fyE_2y_dbg =ignF(r1['2y ago FY EPS']);
-  var fyR_cur_dbg=ignF(r1['FY Turnover (m)']);
-  var fyR_1y_dbg =ignF(r1['1y ago FY Turnover (m)']);
-  var hpfx_dbg=(cand.qtr==='Q2'||cand.qtr==='Q3')?'H1':'H2';
-  var hE_cur_dbg =ignF(r1[hpfx_dbg+' EPS']);
-  var hE_1y_dbg  =ignF(r1['1y ago '+hpfx_dbg+' EPS']);
-  var hE_2y_dbg  =ignF(r1['2y ago '+hpfx_dbg+' EPS']);
-  var f5EpsAct   =f5.eps_act;
-  var f5FcEps    =f5.fc_eps;
-  var f5RevAct   =f5.rev_act;
-  var f5FcRev    =f5.fc_rev;
+  // values as scorer used them
+  var fyE_cur=ignF(r1['FY EPS']);
+  var fyE_1y =ignF(r1['1y ago FY EPS']);
+  var fyE_2y =ignF(r1['2y ago FY EPS']);
+  var fyR_cur=ignF(r1['FY Turnover (m)']);
+  var fyR_1y =ignF(r1['1y ago FY Turnover (m)']);
+  var fyR_2y =ignF(r1['2y ago FY Turnover (m)']);
+  var hE_cur =ignF(r1[hpfx+' EPS']);
+  var hE_1y  =ignF(r1['1y ago '+hpfx+' EPS']);
+  var hE_2y  =ignF(r1['2y ago '+hpfx+' EPS']);
 
-  // fcEpsG as scorer computed it
-  var fcEpsG_dbg=ignGrowthPct(f5EpsAct,f5FcEps);
-  var fcRevG_dbg=(f5RevAct&&f5RevAct>0&&f5FcRev)?((f5FcRev/f5RevAct-1)*100):null;
-  var fyEps_dbg=fyE_cur_dbg!==null?fyE_cur_dbg:f5EpsAct;
-  var fcEpsR1_dbg=ignF(r1['fc EPS'])||f5FcEps;
-  var fyRev_dbg=fyR_cur_dbg!==null?fyR_cur_dbg:f5RevAct;
-  // epsActGr as scorer computed it
-  var epsActGr_dbg=(fyE_1y_dbg&&fyEps_dbg&&fyE_1y_dbg!==0)?ignGrowthPct(fyE_1y_dbg,fyEps_dbg):null;
+  // replicate scorer's epsActGr logic (conditional on FY cur availability)
+  var epsActGr_dbg=fyE_cur!==null
+    ?(fyE_1y&&fyE_1y!==0?ignGrowthPct(fyE_1y,fyE_cur):null)
+    :(fyE_2y&&fyE_1y&&fyE_2y!==0?ignGrowthPct(fyE_2y,fyE_1y):null);
+  var revActGr_dbg=fyR_cur!==null
+    ?(fyR_1y&&fyR_1y>0?((fyR_cur/fyR_1y-1)*100):null)
+    :(fyR_2y&&fyR_1y&&fyR_2y>0?((fyR_1y/fyR_2y-1)*100):null);
+  var fcEpsG_dbg=ignGrowthPct(f5.eps_act,f5.fc_eps);
+  var fcRevG_dbg=(f5.rev_act&&f5.rev_act>0&&f5.fc_rev)?((f5.fc_rev/f5.rev_act-1)*100):null;
   var epsAccel_dbg=epsActGr_dbg!==null&&fcEpsG_dbg!==null?fcEpsG_dbg-epsActGr_dbg:null;
+  var revAccel_dbg=revActGr_dbg!==null&&fcRevG_dbg!==null?fcRevG_dbg-revActGr_dbg:null;
+  var accelBase=isH1?'2y→1y FY (Q2/Q3)':'1y→cur FY (Q1/Q4)';
 
-  function dn(v,dp){ return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(dp||1)+'</span>'; }
-  function ds(v){ return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--amber)">'+v+'</span>'; }
+  function dn(v,dp){return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(dp!==undefined?dp:1)+'</span>';}
 
   var debugHtml=''
     +'<details style="margin-bottom:10px;">'
-    +'<summary style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);cursor:pointer;margin-bottom:6px;user-select:none;">🔍 Debug — raw inputs</summary>'
-    +'<div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:9px;line-height:1.9;">'
-    +'<div style="color:var(--text-dim);margin-bottom:4px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;">f5 (File 5 feed)</div>'
-    +'<div>f5.eps_act = '+dn(f5EpsAct)+' &nbsp; f5.fc_eps = '+dn(f5FcEps)+'</div>'
-    +'<div>f5.rev_act = '+dn(f5RevAct)+' &nbsp; f5.fc_rev = '+dn(f5FcRev)+'</div>'
-    +'<div style="color:var(--text-dim);margin:6px 0 4px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;">r1 (richCache merged)</div>'
-    +'<div>FY EPS cur = '+dn(fyE_cur_dbg)+' &nbsp; 1y = '+dn(fyE_1y_dbg)+' &nbsp; 2y = '+dn(fyE_2y_dbg)+'</div>'
-    +'<div>FY Rev cur = '+dn(fyR_cur_dbg)+' &nbsp; 1y = '+dn(fyR_1y_dbg)+'</div>'
-    +'<div>'+hpfx_dbg+' EPS cur = '+dn(hE_cur_dbg)+' &nbsp; 1y = '+dn(hE_1y_dbg)+' &nbsp; 2y = '+dn(hE_2y_dbg)+'</div>'
-    +'<div>r1[fc EPS] = '+dn(ignF(r1['fc EPS']))+' &nbsp; r1[fc Rev] = '+dn(ignF(r1['fc Turnover (m)']))+'</div>'
-    +'<div style="color:var(--text-dim);margin:6px 0 4px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;">computed (as scorer saw)</div>'
-    +'<div>fcEpsG (raw) = '+dn(fcEpsG_dbg)+' &nbsp; fcRevG = '+dn(fcRevG_dbg)+'</div>'
-    +'<div>fyEps used = '+dn(fyEps_dbg)+' &nbsp; fyRev used = '+dn(fyRev_dbg)+'</div>'
-    +'<div>epsActGr (1y→cur) = '+dn(epsActGr_dbg)+'</div>'
-    +'<div>epsAccel = fcEpsG − epsActGr = '+dn(fcEpsG_dbg)+'&nbsp;−&nbsp;'+dn(epsActGr_dbg)+' = '+dn(epsAccel_dbg)+'</div>'
-    +'<div>cand.eps_accel (stored) = '+dn(cand.eps_accel)+'</div>'
-    +'<div>cand.beat_prior = '+dn(cand.beat_prior)+' &nbsp; cand.half_accel = '+dn(cand.half_accel)+'</div>'
+    +'<summary style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);cursor:pointer;user-select:none;">🔍 Debug — raw inputs</summary>'
+    +'<div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:9px;line-height:2.0;margin-top:6px;">'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">f5 (File 5 feed)</div>'
+    +'<div>eps_act='+dn(f5.eps_act)+' &nbsp; fc_eps='+dn(f5.fc_eps)+'</div>'
+    +'<div>rev_act='+dn(f5.rev_act)+' &nbsp; fc_rev='+dn(f5.fc_rev)+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px;">r1 (richCache merged)</div>'
+    +'<div>FY EPS cur='+dn(fyE_cur)+' &nbsp; 1y='+dn(fyE_1y)+' &nbsp; 2y='+dn(fyE_2y)+'</div>'
+    +'<div>FY Rev cur='+dn(fyR_cur)+' &nbsp; 1y='+dn(fyR_1y)+'</div>'
+    +'<div>'+hpfx+' EPS cur='+dn(hE_cur)+' &nbsp; 1y='+dn(hE_1y)+' &nbsp; 2y='+dn(hE_2y)+'</div>'
+    +'<div>r1[fc EPS]='+dn(ignF(r1['fc EPS']))+' &nbsp; r1[fc Rev]='+dn(ignF(r1['fc Turnover (m)']))+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px;">computed ('+accelBase+')</div>'
+    +'<div>fcEpsG='+dn(fcEpsG_dbg)+' &nbsp; fcRevG='+dn(fcRevG_dbg)+'</div>'
+    +'<div>epsActGr='+dn(epsActGr_dbg)+' &nbsp; revActGr='+dn(revActGr_dbg)+'</div>'
+    +'<div>epsAccel='+dn(epsAccel_dbg)+' &nbsp; revAccel='+dn(revAccel_dbg)+'</div>'
+    +'<div>cand.eps_accel='+dn(cand.eps_accel)+' &nbsp; cand.half_accel='+dn(cand.half_accel)+'</div>'
+    +'<div>cand.beat_prior='+dn(cand.beat_prior)+' &nbsp; cand.breakout_pct='+dn(cand.breakout_pct)+'</div>'
     +'</div>'
     +'</details>';
 
   if(cand.trailing) return debugHtml+buildTrailBreakdown(cand);
 
-  // ── weights (mirror ignRun redistribution) ──
+  // weights — mirror ignRun redistribution
   var w={eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
   var notes={ea:'',ra:'',bp:'',bk:'',ha:''};
   if(cand.eps_accel===null){notes.ea='redistributed';w.eg+=w.ea*0.6;w.rg+=w.ea*0.4;w.ea=0;}
@@ -1830,7 +1838,6 @@ function buildScoreBreakdown(cand, r1){
   if(cand.breakout_pct===null){notes.bk='redistributed';w.eg+=w.bk*0.5;w.rg+=w.bk*0.5;w.bk=0;}
   if(cand.half_accel===null){notes.ha='redistributed';w.bp+=w.ha;w.ha=0;}
 
-  // ── percentile arrays ──
   var aEG=ignData.map(function(c){return c.fc_eps_g_capped;});
   var aRG=ignData.map(function(c){return c.fc_rev_g;});
   var aEA=ignData.filter(function(c){return c.eps_accel!==null;}).map(function(c){return c.eps_accel;});
@@ -1853,7 +1860,6 @@ function buildScoreBreakdown(cand, r1){
     +(pHA!==null?pHA*w.ha:0);
   var rawContrib=rawScore*0.90;
 
-  // ── bonuses ──
   var epsHighBonus=cand.eps_new_high?5:0;
   var revHighBonus=cand.rev_new_high?3:0;
   var beatBonus=cand.beatBonus||0;
@@ -1874,22 +1880,20 @@ function buildScoreBreakdown(cand, r1){
   var maMult=mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55;
   var rankScore=Math.round(ignScore*maMult*10)/10;
 
+  function pL(v){return v===null?'—':v.toFixed(1)+'%';}
   function rowHtml(label,rawVal,weight,pts,note,dim){
-    var hasVal=(pts!==null&&pts!==undefined);
-    var barW=hasVal?Math.round(pts)+'%':'0%';
-    var barCol=pts>=70?'var(--green)':pts>=40?'var(--amber)':'var(--red)';
-    var ptsStr=hasVal?pts.toFixed(0):'n/a';
-    var ptsCol=hasVal?(pts>=70?'var(--green)':pts>=40?'var(--amber)':'var(--red)'):'var(--text-dim)';
+    var has=pts!==null;
+    var col=has?(pts>=70?'var(--green)':pts>=40?'var(--amber)':'var(--red)'):'var(--text-dim)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
       +'<td style="padding:4px 6px 4px 0;font-size:9px;color:'+(dim?'var(--text-dim)':'var(--text-secondary)')+';white-space:nowrap;">'+label+'</td>'
       +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;white-space:nowrap;">'+rawVal+'</td>'
-      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;white-space:nowrap;">'+(weight*100).toFixed(0)+'%</td>'
+      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;">'+(weight*100).toFixed(0)+'%</td>'
       +'<td style="padding:4px 0 4px 4px;min-width:70px;">'
         +'<div style="display:flex;align-items:center;gap:4px;">'
           +'<div style="flex:1;height:4px;background:var(--surface3);border-radius:2px;min-width:32px;">'
-            +'<div style="width:'+barW+';height:100%;background:'+barCol+';border-radius:2px;"></div>'
+            +(has?'<div style="width:'+Math.round(pts)+'%;height:100%;background:'+col+';border-radius:2px;"></div>':'')
           +'</div>'
-          +'<span style="font-size:9px;font-weight:700;color:'+ptsCol+';min-width:20px;text-align:right;">'+ptsStr+'</span>'
+          +'<span style="font-size:9px;font-weight:700;color:'+col+';min-width:20px;text-align:right;">'+(has?pts.toFixed(0):'n/a')+'</span>'
         +'</div>'
       +'</td>'
       +'<td style="padding:4px 0 4px 6px;font-size:8px;color:var(--text-dim);white-space:nowrap;">'+(note||'')+'</td>'
@@ -1899,7 +1903,7 @@ function buildScoreBreakdown(cand, r1){
     var col=pts>0?'var(--green)':pts<0?'var(--red)':'var(--text-dim)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
       +'<td style="padding:3px 6px 3px 0;font-size:9px;color:var(--text-secondary);" colspan="2">'+label+'</td>'
-      +'<td style="padding:3px 4px;"></td>'
+      +'<td></td>'
       +'<td style="padding:3px 0 3px 6px;font-size:9px;font-weight:700;color:'+col+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
       +'<td style="padding:3px 0 3px 6px;font-size:8px;color:var(--text-dim);">'+(note||'')+'</td>'
       +'</tr>';
@@ -1909,52 +1913,44 @@ function buildScoreBreakdown(cand, r1){
   html+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Score Breakdown</div>';
   html+='<table style="width:100%;border-collapse:collapse;">';
   html+='<tr style="border-bottom:1px solid var(--border);">'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;letter-spacing:.06em;">Component</th>'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;letter-spacing:.06em;">Value</th>'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;letter-spacing:.06em;">Wt</th>'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 0 4px 6px;letter-spacing:.06em;">Pctile</th>'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 0 4px 6px;letter-spacing:.06em;">Note</th>'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;">Component</th>'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Value</th>'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Wt</th>'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Pctile</th>'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Note</th>'
     +'</tr>';
-
-  function pctLabel(v){ return v===null?'—':v.toFixed(1)+'%'; }
-  html+=rowHtml('Half beat vs prior yr',pctLabel(cand.beat_prior),w.bp,pBP,
-    cand.beat_prior!==null?cand.beat_prior.toFixed(0)+'% beat':notes.bp,cand.beat_prior===null);
-  html+=rowHtml('fc EPS growth',pctLabel(cand.fc_eps_g)+(cand.fc_eps_g_capped!==cand.fc_eps_g?' →'+pctLabel(cand.fc_eps_g_capped):''),w.eg,pEG,'capped 4× Rev','');
-  html+=rowHtml('fc Revenue growth',pctLabel(cand.fc_rev_g),w.rg,pRG,'','');
-  html+=rowHtml('EPS & Rev breakout',pctLabel(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'avg vs prior max',cand.breakout_pct===null);
-  html+=rowHtml('Half-yr accel',pctLabel(cand.half_accel),w.ha,pHA,cand.half_accel===null?notes.ha:'',cand.half_accel===null);
-  html+=rowHtml('EPS accel (fc vs act)',pctLabel(cand.eps_accel),w.ea,pEA,cand.eps_accel===null?notes.ea:'',cand.eps_accel===null);
-  html+=rowHtml('Rev accel',pctLabel(cand.rev_accel),w.ra,pRA,cand.rev_accel===null?notes.ra:'',cand.rev_accel===null);
+  html+=rowHtml('Half beat vs prior yr',pL(cand.beat_prior),w.bp,pBP,cand.beat_prior!==null?cand.beat_prior.toFixed(0)+'% beat':notes.bp,cand.beat_prior===null);
+  html+=rowHtml('fc EPS growth',pL(cand.fc_eps_g)+(cand.fc_eps_g_capped!==cand.fc_eps_g?' →'+pL(cand.fc_eps_g_capped):''),w.eg,pEG,'capped 4×Rev','');
+  html+=rowHtml('fc Revenue growth',pL(cand.fc_rev_g),w.rg,pRG,'','');
+  html+=rowHtml('EPS & Rev breakout',pL(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'vs prior max',cand.breakout_pct===null);
+  html+=rowHtml('Half-yr accel',pL(cand.half_accel),w.ha,pHA,cand.half_accel===null?notes.ha:accelBase.split(' ')[0],cand.half_accel===null);
+  html+=rowHtml('EPS accel (fc vs act)',pL(cand.eps_accel),w.ea,pEA,cand.eps_accel===null?notes.ea:accelBase,cand.eps_accel===null);
+  html+=rowHtml('Rev accel',pL(cand.rev_accel),w.ra,pRA,cand.rev_accel===null?notes.ra:accelBase,cand.rev_accel===null);
   html+='</table>';
 
   html+='<div style="margin:10px 0 8px;display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;">'
     +'<span style="font-size:9px;color:var(--text-dim);">Raw score × 0.90</span>'
-    +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+rawContrib.toFixed(1)+'</span>'
-    +'</div>';
+    +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+rawContrib.toFixed(1)+'</span></div>';
 
   html+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>';
   html+='<table style="width:100%;border-collapse:collapse;">';
-  html+=bonusRow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHighBonus,cand.eps_new_high?'+5 pts':'—');
-  html+=bonusRow('fc Rev new high '+(cand.rev_new_high?'✓':'✗'),revHighBonus,cand.rev_new_high?'+3 pts':'—');
-  html+=bonusRow('Standout beat >25%'+(beatBonus?' 🔥':''),beatBonus,beatBonus?'+3 (beat='+cand.beat_prior.toFixed(1)+'%)':'—');
-  html+=bonusRow('Broker EPS 1m '+(epsUpg!==null?epsUpg.toFixed(2)+'%':'n/a'),epsBonus,epsBonus?'+'+epsBonus+' (>'+( epsBk>15?'15':epsBk>5?'5':'2')+'%)':'—');
-  html+=bonusRow('Broker Rev 1m '+(revBk?revBk.toFixed(2)+'%':'n/a'),revBonus,revBonus?'+'+revBonus:' —');
-  if(epsBonus&&revBonus) html+=bonusRow('Both EPS & Rev upgraded',bothBonus,'+2 extra');
+  html+=bonusRow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHighBonus,cand.eps_new_high?'+5pts':'—');
+  html+=bonusRow('fc Rev new high '+(cand.rev_new_high?'✓':'✗'),revHighBonus,cand.rev_new_high?'+3pts':'—');
+  html+=bonusRow('Standout beat >25%'+(beatBonus?' 🔥':''),beatBonus,beatBonus?'+3 ('+cand.beat_prior.toFixed(1)+'%)':'—');
+  html+=bonusRow('Broker EPS 1m '+(epsUpg!==null?epsUpg.toFixed(2)+'%':'n/a'),epsBonus,epsBonus?'+'+epsBonus:'—');
+  html+=bonusRow('Broker Rev 1m '+(revBk?revBk.toFixed(2)+'%':'n/a'),revBonus,revBonus?'+'+revBonus:'—');
+  if(epsBonus&&revBonus) html+=bonusRow('Both upgraded',bothBonus,'+2 extra');
   html+=bonusRow('1w momentum (eps='+eps1w.toFixed(2)+'% rev='+rev1w.toFixed(2)+'%)',wkMod,wkMod===1?'+1 live':wkMod===-1?'−1 mild':wkMod===-2?'−2 sharp':'neutral');
   html+='</table>';
 
   html+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
-  html+='<div style="display:flex;justify-content:space-between;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">Total bonuses</span>'
-    +'<span style="font-size:10px;font-weight:700;color:var(--green);">+'+totalBonus+'</span></div>';
+  html+='<div style="display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--text-dim);">Total bonuses</span><span style="font-size:10px;font-weight:700;color:var(--green);">+'+totalBonus+'</span></div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition (capped 99)</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+ignScore+'</span></div>';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">Ignition (capped 99)</span>'
-    +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+ignScore+'</span></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">MAs: '
-      +(cand.lt?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--red);">✗</span>')+' 200d '
-      +(cand.mt?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--red);">✗</span>')+' 100d '
-      +(cand.st?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--red);">✗</span>')+' 50d → ×'+maMult.toFixed(2)
+    +'<span style="font-size:9px;color:var(--text-dim);">MAs '
+      +(cand.lt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 200d '
+      +(cand.mt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 100d '
+      +(cand.st?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 50d → ×'+maMult.toFixed(2)
     +'</span>'
     +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+rankScore.toFixed(0)+'</span></div>';
   html+='</div>';
@@ -1965,7 +1961,7 @@ function buildTrailBreakdown(cand){
   var tAEC=ignTrailData.map(function(c){return c.eps_cagr;});
   var tARC=ignTrailData.map(function(c){return c.rev_cagr;});
   var tABP=ignTrailData.filter(function(c){return c.beat_prior!==null;}).map(function(c){return c.beat_prior;});
-  var html='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Trailing Track — CAGR scoring</div>';
+  var html='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Trailing Track</div>';
   function bRow(lbl,val,pct,wt){
     var col=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
@@ -1988,34 +1984,27 @@ function buildTrailBreakdown(cand){
   var mc=(cand.lt?1:0)+(cand.mt?1:0)+(cand.st?1:0);
   var maMult=mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55;
   html+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">Ignition ×0.90, cap 99</span>'
-    +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+cand.ignition+'</span></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">MA mult '+mc+'/3 → ×'+maMult.toFixed(2)+'</span>'
-    +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+cand.rank.toFixed(0)+'</span></div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition ×0.90 cap 99</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+cand.ignition+'</span></div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">MA mult '+mc+'/3 → ×'+maMult.toFixed(2)+'</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+cand.rank.toFixed(0)+'</span></div>';
   html+='</div>';
   return html;
-}
-
-function closePopup(){
-  document.getElementById('popup').classList.remove('open');
-  document.getElementById('popup-overlay').classList.remove('open');
 }
 
 function downloadRichCache(){
   var rich=exState.richCache;
   if(!rich||!Object.keys(rich).length){showToast('No parsed cache — upload File 4 first','warn');return;}
-  var json=JSON.stringify(rich,null,2);
-  var blob=new Blob([json],{type:'application/json'});
+  var blob=new Blob([JSON.stringify(rich,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;
-  var date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).replace(/ /g,'-');
-  a.download='ignition-richcache-'+date+'.json';
-  a.click();
-  URL.revokeObjectURL(url);
+  a.download='ignition-richcache-'+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).replace(/ /g,'-')+'.json';
+  a.click();URL.revokeObjectURL(url);
   showToast('✓ Downloaded richCache — '+Object.keys(rich).length+' tickers','ok');
+}
+
+function closePopup(){
+  document.getElementById('popup').classList.remove('open');
+  document.getElementById('popup-overlay').classList.remove('open');
 }
 
 // ── Toast ──
