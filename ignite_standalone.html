@@ -391,8 +391,8 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     <thead>
       <tr>
         <th class="th th-left" style="width:32px;" onclick="ignSort('rank')">#</th>
-        <th class="th th-left" style="width:74px;" onclick="ignSort('tidm')">TIDM</th>
-        <th class="th th-left" style="min-width:145px;" onclick="ignSort('name')">Name</th>
+        <th class="th th-left" style="width:120px;" onclick="ignSort('tidm')">TIDM</th>
+        <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
         <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
         <th class="th" style="width:58px;" onclick="ignSort('yr_end')">Yr End</th>
         <th class="th" style="width:30px;" onclick="ignSort('qtr')">Q</th>
@@ -622,6 +622,12 @@ function loadCachedF5(){
 function loadFile4(input){
   var file=input.files[0];
   if(!file) return;
+  /* Warn if not a txt file — common mistake is uploading weekly CSV snapshot */
+  if(!file.name.toLowerCase().endsWith('.txt')){
+    showToast('⚠ File 4 should be the .txt extraction from the Data Extractor — not the weekly CSV snapshot','warn',6000);
+    document.getElementById('f4-input').value='';
+    return;
+  }
   var btn=document.getElementById('cache-btn');
   document.getElementById('f4-dot').className='status-dot loading';
   document.getElementById('f4-name').textContent='Parsing…';
@@ -1413,12 +1419,19 @@ function ignYrEnd(d){
   return '<span style="color:var(--text-dim);font-size:10px;">'+d+'</span>';
 }
 function ignTidmCell(c){
-  var acqM=c.acq_flag?'<span style="color:var(--red);font-size:9px;" title="Acq>15%rev">⚑</span>':'';
-  var fireM='';
-  if(c.brokerBonus&&c.brokerBonus>0) fireM+='<span style="font-size:10px;" title="Broker upgrade">🔥</span>';
-  if(c.beatBonus&&c.beatBonus>0) fireM+='<span style="font-size:10px;" title="Standout beat">🔥</span>';
-  var pre=c.trailing?'<span style="color:var(--text-dim);font-size:9px;margin-right:2px;">†</span>':'';
-  return pre+'<span style="color:var(--amber);font-weight:700;cursor:pointer;" title="Double-click for scorecard">'+c.tidm+'</span> '+acqM+fireM;
+  /* Fixed emoji slots — each 14px wide, positions consistent regardless of content */
+  var s1=c.brokerBonus&&c.brokerBonus>0?'🔥':'<span style="opacity:0;">🔥</span>';  /* broker upgrade */
+  var s2=c.beatBonus&&c.beatBonus>0?'🔥':'<span style="opacity:0;">🔥</span>';      /* standout beat */
+  var s3=c.acq_flag?'<span style="color:var(--red);" title="Acq>15%rev">⚑</span>':'<span style="opacity:0;">⚑</span>'; /* acquisition flag */
+  var s4='<span style="opacity:0;">·</span>';  /* reserved */
+  var s5='<span style="opacity:0;">·</span>';  /* reserved */
+  var s6='<span style="opacity:0;">·</span>';  /* reserved */
+  var pre=c.trailing?'<span style="color:var(--text-dim);font-size:9px;">†</span>':'';
+  var tidmStr='<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);display:inline-block;min-width:36px;">'+c.tidm+'</span>';
+  var slots='<span style="display:inline-flex;gap:0px;font-size:11px;vertical-align:middle;margin-left:4px;" title="'
+    +(c.brokerBonus>0?'Broker upgrade ':'')+( c.beatBonus>0?'Standout beat ':'')+( c.acq_flag?'Acq>15% rev':'')
+    +'">'+s1+s2+s3+s4+s5+s6+'</span>';
+  return pre+tidmStr+slots;
 }
 function ignNh(c){
   var nh='';
