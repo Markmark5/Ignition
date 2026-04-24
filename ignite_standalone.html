@@ -668,11 +668,12 @@ function parseTxtBlocks(text, fname){
     if(hidx<0) return {};
     var sec=block.substring(hidx,hidx+700);
     var d={};
+    function pHalf(s){var v=parseFloat((s||'').replace(/,/g,'').trim());return isNaN(v)?null:v;}
     var patterns=[
       ['3y',/3y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
-      ['2y',/2y ago\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
-      ['1y',/1y ago\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
-      ['cur',/Current\s+H1 \/ H2\s*:\s*([\d.-]+)\s*\/\s*([\d.-]+)/],
+      ['2y',/2y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
+      ['1y',/1y ago\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([\d,.-]+)/],
+      ['cur',/Current\s+H1 \/ H2\s*:\s*([\d,.-]+)\s*\/\s*([^\s\u2192]+)/],
       ['fc1',/FY1 fc\s+\S+\s*:\s*([\d,.]+)/],
       ['fc2',/FY2 fc\s+\S+\s*:\s*([\d,.]+)/],
     ];
@@ -681,7 +682,7 @@ function parseTxtBlocks(text, fname){
       var m=sec.match(pat);
       if(m){
         if(key==='fc1'||key==='fc2') d[key]=parseFloat(m[1].replace(/,/g,''));
-        else{d[key+'_h1']=parseFloat(m[1].replace(/,/g,''));d[key+'_h2']=parseFloat(m[2].replace(/,/g,''));}
+        else{d[key+'_h1']=pHalf(m[1]);d[key+'_h2']=pHalf(m[2]);}
       }
     }
     return d;
@@ -1522,8 +1523,8 @@ function openPopup(tidm){
        Q1/Q4=H2 latest (FY act=H1+H2 complete) */
     var richR1={
       'TIDM':tidm,
-      /* FY act: Q4/Q1 = H1+H2 complete; Q2/Q3 = use f5.eps_act (last completed FY) */
-      'FY EPS': isH1?(f5.eps_act||null):(richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):null),
+      /* FY act: Q4/Q1 = H1+H2 complete; Q2/Q3 = null (current FY not yet complete) */
+      'FY EPS': isH1?null:(richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):null),
       '1y ago FY EPS': richEps('1y_h1')!==null&&richEps('1y_h2')!==null?(richEps('1y_h1')+richEps('1y_h2')):null,
       '2y ago FY EPS': richEps('2y_h1')!==null&&richEps('2y_h2')!==null?(richEps('2y_h1')+richEps('2y_h2')):null,
       'H1 EPS': richEps('cur_h1'), '1y ago H1 EPS': richEps('1y_h1'),
@@ -1533,7 +1534,7 @@ function openPopup(tidm){
       'fc EPS': (rich.eps&&rich.eps.fc1!=null)?rich.eps.fc1:(f5.fc_eps||null),
       '2y fc EPS': (rich.eps&&rich.eps.fc2!=null)?rich.eps.fc2:null,
       /* FY Rev act: same Q routing */
-      'FY Turnover (m)': isH1?(f5.rev_act||null):(richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):null),
+      'FY Turnover (m)': isH1?null:(richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):null),
       '1y ago FY Turnover (m)': richRev('1y_h1')!==null&&richRev('1y_h2')!==null?(richRev('1y_h1')+richRev('1y_h2')):null,
       '2y ago FY Turnover (m)': richRev('2y_h1')!==null&&richRev('2y_h2')!==null?(richRev('2y_h1')+richRev('2y_h2')):null,
       'H1 Turnover (m)': richRev('cur_h1'), '1y ago H1 Turnover (m)': richRev('1y_h1'),
@@ -1600,8 +1601,8 @@ function openPopup(tidm){
   var currBadge=(currency&&currency!=='GBP'&&currency!=='p')?'<span style="background:var(--amber-dim);color:var(--amber);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;">'+currency+'</span>':'';
   var epsBreak=fyE_cur!==null&&fyE_1y!==null&&fyE_2y!==null&&fyE_cur>Math.max(fyE_1y,fyE_2y)&&fyE_cur>0;
   var revBreak=fyR_cur!==null&&fyR_1y!==null&&fyR_2y!==null&&fyR_cur>Math.max(fyR_1y,fyR_2y);
-  var fcEpsBreak=fcEps!==null&&fyE_cur!==null&&fyE_1y!==null&&fyE_2y!==null&&fcEps>Math.max(fyE_cur,fyE_1y,fyE_2y)&&fcEps>0;
-  var fcRevBreak=fcRev!==null&&fyR_cur!==null&&fyR_1y!==null&&fyR_2y!==null&&fcRev>Math.max(fyR_cur,fyR_1y,fyR_2y);
+  var fcEpsBase=fyE_cur!==null?fyE_cur:fyE_1y;var fcEpsBreak=fcEps!==null&&fcEpsBase!==null&&(fyE_1y!==null||fyE_2y!==null)&&fcEps>Math.max(fcEpsBase,fyE_1y||fcEpsBase,fyE_2y||fcEpsBase)&&fcEps>0;
+  var fcRevBase=fyR_cur!==null?fyR_cur:fyR_1y;var fcRevBreak=fcRev!==null&&fcRevBase!==null&&(fyR_1y!==null||fyR_2y!==null)&&fcRev>Math.max(fcRevBase,fyR_1y||fcRevBase,fyR_2y||fcRevBase);
   function bFlag(b,label){return b?'<span style="color:var(--green);font-weight:700;">✓ '+label+'</span>':'<span style="color:var(--text-dim);">— '+label+'</span>';}
   var idxShort=cand.f350?(cand.idx_mem.indexOf('100')!==-1?'FTSE 100':'FTSE 250'):(cand.idx_mem.indexOf('AIM')!==-1?'AIM All-Share':'Small Cap');
   var mcapStr=f5.mktcap?(f5.mktcap>=1000?'£'+(f5.mktcap/1000).toFixed(1)+'b':'£'+Math.round(f5.mktcap)+'m'):'—';
@@ -1682,7 +1683,7 @@ function openPopup(tidm){
           +'<td style="'+tdStyle()+'">'+fmtN(fcEps,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcEps2,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtC(chg(fyE_cur,fyE_1y),1,'%')+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtC(fyE_cur!==null&&fcEps!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):null,1,'%')+'</td>'
+          +'<td style="'+tdStyle()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):(fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null)):null,1,'%')+'</td>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">Revenue (m)</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fyR_2y,1)+'</td>'
@@ -1691,7 +1692,7 @@ function openPopup(tidm){
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev2,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtC(chg(fyR_cur,fyR_1y),1,'%')+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtC(fyR_cur!==null&&fcRev!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):null,1,'%')+'</td>'
+          +'<td style="'+tdStyle()+'">'+fmtC(fcRev!==null?(fyR_cur!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):(fyR_1y!==null&&fyR_1y!==0?chg(fcRev,fyR_1y):null)):null,1,'%')+'</td>'
         +'</tr>'
       +'</table>'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Breakout Flags</div>'
