@@ -602,13 +602,8 @@ function onF5Loaded(rows,errors,total){
   document.getElementById('f5-status').textContent=ts;
   document.getElementById('last-refresh').textContent='Updated '+ts;
   showToast('✓ File 5 loaded — '+Object.keys(ignFile5Map).length+' tickers','ok');
-  // Auto-run if rows1/2/3 loaded
-  if(exState.rows1){
-    ignRun();
-  } else {
-    document.getElementById('run-btn').style.display='';
-    showToast('Load File 4 to enable broker momentum, then Run Scores','info',4000);
-  }
+  /* Always run scores — richCache provides File 4 data if available */
+  ignRun();
 }
 function loadCachedF5(){
   try{
@@ -896,7 +891,7 @@ function ignLoadFile5(rows){
     };
   }
   ignFile5Map=map;
-  // Also use as rows1/2/3 source for scorecard (basic)
+  mergeRichIntoF5();  /* merge Q, index, sector etc from File 4 cache */
   buildRowMapsFromF5(rows);
   document.getElementById('run-btn').style.display='';
 }
@@ -976,6 +971,7 @@ function fetchFromGitHub(){
       if(payload.urls) try{localStorage.setItem(IGN_URL_KEY,payload.urls);loadSavedUrls();}catch(e){}
       if(payload._meta.savedAtLabel) localStorage.setItem(IGN_CACHE_DATE,payload._meta.savedAtLabel);
       loadCachesFromStorage();
+      if(Object.keys(ignFile5Map).length) mergeRichIntoF5();
       showToast('✓ Loaded from GitHub · '+(payload._meta.savedAtLabel||''),'ok',4000);
       var btn=document.getElementById('cache-btn');
       if(btn){btn.style.display='';btn.textContent='⬆ Push to GitHub';btn.style.color='var(--green)';}
@@ -992,7 +988,7 @@ function loadCachesFromStorage(){
   try{
     var rich=localStorage.getItem(IGN_RICH_KEY);
     var mom=localStorage.getItem(IGN_MOM_KEY);
-    if(rich) exState.richCache=JSON.parse(rich);
+    if(rich){exState.richCache=JSON.parse(rich);if(Object.keys(ignFile5Map).length)mergeRichIntoF5();}
     if(mom){
       ignExCache=JSON.parse(mom);
       var date=localStorage.getItem(IGN_CACHE_DATE)||'';
