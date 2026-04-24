@@ -667,7 +667,7 @@ function parseTxtBlocks(text, fname){
   function parseHalves(block, header){
     var hidx=block.indexOf(header);
     if(hidx<0) return {};
-    var sec=block.substring(hidx,hidx+700);
+    var sec=block.substring(hidx,hidx+1200);
     var d={};
     function pHalf(s){var v=parseFloat((s||'').replace(/,/g,'').trim());return isNaN(v)?null:v;}
     var patterns=[
@@ -1211,11 +1211,8 @@ function ignRun(){
         var fcEpsGCapped=(fcRevG>0)?Math.min(fcEpsG,Math.max(50,fcRevG*4)):Math.min(fcEpsG,50);
         var fyEps1y=ignF(r1['1y ago FY EPS']),fyRev1y=ignF(r1['1y ago FY Turnover (m)']);
         var fyEps2y=ignF(r1['2y ago FY EPS']),fyRev2y=ignF(r1['2y ago FY Turnover (m)']);
-        /* epsActGr = prior year growth rate (used to compute acceleration vs fc)
-           Q1/Q4: FY cur is complete  → measure 1y_ago → cur  (most recent actual step)
-           Q2/Q3: FY cur is null      → measure 2y_ago → 1y_ago (last completed annual step) */
-        var fyEpsCur=ignF(r1['FY EPS']);
-        var fyRevCur=ignF(r1['FY Turnover (m)']);
+        /* Q1/Q4: FY cur complete → use 1y_ago→cur; Q2/Q3: FY cur null → use 2y_ago→1y_ago */
+        var fyEpsCur=ignF(r1['FY EPS']),fyRevCur=ignF(r1['FY Turnover (m)']);
         var epsActGr=fyEpsCur!==null
           ?(fyEps1y&&fyEps1y!==0?ignGrowthPct(fyEps1y,fyEpsCur):null)
           :(fyEps2y&&fyEps1y&&fyEps2y!==0?ignGrowthPct(fyEps2y,fyEps1y):null);
@@ -1773,63 +1770,41 @@ function openPopup(tidm){
   document.getElementById('popup-overlay').classList.add('open');
 }
 
-// ── Score Breakdown ──
 function buildScoreBreakdown(cand,r1){
   r1=r1||{};
   var f5=ignFile5Map[cand.tidm]||{};
   var isH1=(cand.qtr==='Q2'||cand.qtr==='Q3');
   var hpfx=isH1?'H1':'H2';
-
-  // values as scorer used them
-  var fyE_cur=ignF(r1['FY EPS']);
-  var fyE_1y =ignF(r1['1y ago FY EPS']);
-  var fyE_2y =ignF(r1['2y ago FY EPS']);
-  var fyR_cur=ignF(r1['FY Turnover (m)']);
-  var fyR_1y =ignF(r1['1y ago FY Turnover (m)']);
-  var fyR_2y =ignF(r1['2y ago FY Turnover (m)']);
-  var hE_cur =ignF(r1[hpfx+' EPS']);
-  var hE_1y  =ignF(r1['1y ago '+hpfx+' EPS']);
-  var hE_2y  =ignF(r1['2y ago '+hpfx+' EPS']);
-
-  // replicate scorer's epsActGr logic (conditional on FY cur availability)
-  var epsActGr_dbg=fyE_cur!==null
-    ?(fyE_1y&&fyE_1y!==0?ignGrowthPct(fyE_1y,fyE_cur):null)
-    :(fyE_2y&&fyE_1y&&fyE_2y!==0?ignGrowthPct(fyE_2y,fyE_1y):null);
-  var revActGr_dbg=fyR_cur!==null
-    ?(fyR_1y&&fyR_1y>0?((fyR_cur/fyR_1y-1)*100):null)
-    :(fyR_2y&&fyR_1y&&fyR_2y>0?((fyR_1y/fyR_2y-1)*100):null);
-  var fcEpsG_dbg=ignGrowthPct(f5.eps_act,f5.fc_eps);
-  var fcRevG_dbg=(f5.rev_act&&f5.rev_act>0&&f5.fc_rev)?((f5.fc_rev/f5.rev_act-1)*100):null;
-  var epsAccel_dbg=epsActGr_dbg!==null&&fcEpsG_dbg!==null?fcEpsG_dbg-epsActGr_dbg:null;
-  var revAccel_dbg=revActGr_dbg!==null&&fcRevG_dbg!==null?fcRevG_dbg-revActGr_dbg:null;
+  var fyE_cur=ignF(r1['FY EPS']),fyE_1y=ignF(r1['1y ago FY EPS']),fyE_2y=ignF(r1['2y ago FY EPS']);
+  var fyR_cur=ignF(r1['FY Turnover (m)']),fyR_1y=ignF(r1['1y ago FY Turnover (m)']),fyR_2y=ignF(r1['2y ago FY Turnover (m)']);
+  var hE_cur=ignF(r1[hpfx+' EPS']),hE_1y=ignF(r1['1y ago '+hpfx+' EPS']),hE_2y=ignF(r1['2y ago '+hpfx+' EPS']);
+  var fcEpsG_d=ignGrowthPct(f5.eps_act,f5.fc_eps);
+  var fcRevG_d=(f5.rev_act&&f5.rev_act>0&&f5.fc_rev)?((f5.fc_rev/f5.rev_act-1)*100):null;
+  var epsActGr_d=fyE_cur!==null?(fyE_1y&&fyE_1y!==0?ignGrowthPct(fyE_1y,fyE_cur):null):(fyE_2y&&fyE_1y&&fyE_2y!==0?ignGrowthPct(fyE_2y,fyE_1y):null);
+  var revActGr_d=fyR_cur!==null?(fyR_1y&&fyR_1y>0?((fyR_cur/fyR_1y-1)*100):null):(fyR_2y&&fyR_1y&&fyR_2y>0?((fyR_1y/fyR_2y-1)*100):null);
   var accelBase=isH1?'2y→1y FY (Q2/Q3)':'1y→cur FY (Q1/Q4)';
-
-  function dn(v,dp){return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(dp!==undefined?dp:1)+'</span>';}
-
-  var debugHtml=''
+  function dn(v){return v===null||v===undefined?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(1)+'</span>';}
+  var dbg=''
     +'<details style="margin-bottom:10px;">'
     +'<summary style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);cursor:pointer;user-select:none;">🔍 Debug — raw inputs</summary>'
     +'<div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:9px;line-height:2.0;margin-top:6px;">'
-    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">f5 (File 5 feed)</div>'
-    +'<div>eps_act='+dn(f5.eps_act)+' &nbsp; fc_eps='+dn(f5.fc_eps)+'</div>'
-    +'<div>rev_act='+dn(f5.rev_act)+' &nbsp; fc_rev='+dn(f5.fc_rev)+'</div>'
-    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px;">r1 (richCache merged)</div>'
-    +'<div>FY EPS cur='+dn(fyE_cur)+' &nbsp; 1y='+dn(fyE_1y)+' &nbsp; 2y='+dn(fyE_2y)+'</div>'
-    +'<div>FY Rev cur='+dn(fyR_cur)+' &nbsp; 1y='+dn(fyR_1y)+'</div>'
-    +'<div>'+hpfx+' EPS cur='+dn(hE_cur)+' &nbsp; 1y='+dn(hE_1y)+' &nbsp; 2y='+dn(hE_2y)+'</div>'
-    +'<div>r1[fc EPS]='+dn(ignF(r1['fc EPS']))+' &nbsp; r1[fc Rev]='+dn(ignF(r1['fc Turnover (m)']))+'</div>'
-    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px;">computed ('+accelBase+')</div>'
-    +'<div>fcEpsG='+dn(fcEpsG_dbg)+' &nbsp; fcRevG='+dn(fcRevG_dbg)+'</div>'
-    +'<div>epsActGr='+dn(epsActGr_dbg)+' &nbsp; revActGr='+dn(revActGr_dbg)+'</div>'
-    +'<div>epsAccel='+dn(epsAccel_dbg)+' &nbsp; revAccel='+dn(revAccel_dbg)+'</div>'
-    +'<div>cand.eps_accel='+dn(cand.eps_accel)+' &nbsp; cand.half_accel='+dn(cand.half_accel)+'</div>'
-    +'<div>cand.beat_prior='+dn(cand.beat_prior)+' &nbsp; cand.breakout_pct='+dn(cand.breakout_pct)+'</div>'
-    +'</div>'
-    +'</details>';
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;">f5 (File 5)</div>'
+    +'<div>eps_act='+dn(f5.eps_act)+'&nbsp; fc_eps='+dn(f5.fc_eps)+'&nbsp; rev_act='+dn(f5.rev_act)+'&nbsp; fc_rev='+dn(f5.fc_rev)+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">r1 (richCache)</div>'
+    +'<div>FY EPS cur='+dn(fyE_cur)+'&nbsp; 1y='+dn(fyE_1y)+'&nbsp; 2y='+dn(fyE_2y)+'</div>'
+    +'<div>FY Rev cur='+dn(fyR_cur)+'&nbsp; 1y='+dn(fyR_1y)+'&nbsp; 2y='+dn(fyR_2y)+'</div>'
+    +'<div>'+hpfx+' EPS cur='+dn(hE_cur)+'&nbsp; 1y='+dn(hE_1y)+'&nbsp; 2y='+dn(hE_2y)+'</div>'
+    +'<div>fc EPS='+dn(ignF(r1['fc EPS']))+'&nbsp; fc Rev='+dn(ignF(r1['fc Turnover (m)']))+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">computed ('+accelBase+')</div>'
+    +'<div>fcEpsG='+dn(fcEpsG_d)+'&nbsp; fcRevG='+dn(fcRevG_d)+'</div>'
+    +'<div>epsActGr='+dn(epsActGr_d)+'&nbsp; revActGr='+dn(revActGr_d)+'</div>'
+    +'<div>epsAccel='+dn(epsActGr_d!==null&&fcEpsG_d!==null?fcEpsG_d-epsActGr_d:null)+'&nbsp; revAccel='+dn(revActGr_d!==null&&fcRevG_d!==null?fcRevG_d-revActGr_d:null)+'</div>'
+    +'<div>stored: eps_accel='+dn(cand.eps_accel)+'&nbsp; rev_accel='+dn(cand.rev_accel)+'&nbsp; half_accel='+dn(cand.half_accel)+'</div>'
+    +'<div>beat_prior='+dn(cand.beat_prior)+'&nbsp; breakout_pct='+dn(cand.breakout_pct)+'</div>'
+    +'</div></details>';
 
-  if(cand.trailing) return debugHtml+buildTrailBreakdown(cand);
+  if(cand.trailing) return dbg+buildTrailBreakdown(cand);
 
-  // weights — mirror ignRun redistribution
   var w={eg:0.20,rg:0.20,ea:0.08,ra:0.05,bp:0.25,bk:0.12,ha:0.10};
   var notes={ea:'',ra:'',bp:'',bk:'',ha:''};
   if(cand.eps_accel===null){notes.ea='redistributed';w.eg+=w.ea*0.6;w.rg+=w.ea*0.4;w.ea=0;}
@@ -1837,7 +1812,6 @@ function buildScoreBreakdown(cand,r1){
   if(cand.beat_prior===null){notes.bp='redistributed';w.eg+=w.bp*0.6;w.rg+=w.bp*0.4;w.bp=0;}
   if(cand.breakout_pct===null){notes.bk='redistributed';w.eg+=w.bk*0.5;w.rg+=w.bk*0.5;w.bk=0;}
   if(cand.half_accel===null){notes.ha='redistributed';w.bp+=w.ha;w.ha=0;}
-
   var aEG=ignData.map(function(c){return c.fc_eps_g_capped;});
   var aRG=ignData.map(function(c){return c.fc_rev_g;});
   var aEA=ignData.filter(function(c){return c.eps_accel!==null;}).map(function(c){return c.eps_accel;});
@@ -1845,124 +1819,97 @@ function buildScoreBreakdown(cand,r1){
   var aBP=ignData.filter(function(c){return c.beat_prior!==null;}).map(function(c){return c.beat_prior;});
   var aBK=ignData.filter(function(c){return c.breakout_pct!==null;}).map(function(c){return c.breakout_pct;});
   var aHA=ignData.filter(function(c){return c.half_accel!==null;}).map(function(c){return c.half_accel;});
-
-  var pEG=ignPct(aEG,cand.fc_eps_g_capped);
-  var pRG=ignPct(aRG,cand.fc_rev_g);
+  var pEG=ignPct(aEG,cand.fc_eps_g_capped),pRG=ignPct(aRG,cand.fc_rev_g);
   var pEA=cand.eps_accel!==null&&aEA.length?ignPct(aEA,cand.eps_accel):null;
   var pRA=cand.rev_accel!==null&&aRA.length?ignPct(aRA,cand.rev_accel):null;
   var pBP=cand.beat_prior!==null&&aBP.length?ignPct(aBP,cand.beat_prior):null;
   var pBK=cand.breakout_pct!==null&&aBK.length?ignPct(aBK,cand.breakout_pct):null;
   var pHA=cand.half_accel!==null&&aHA.length?ignPct(aHA,cand.half_accel):null;
-
-  var rawScore=pEG*w.eg+pRG*w.rg
-    +(pEA!==null?pEA*w.ea:0)+(pRA!==null?pRA*w.ra:0)
-    +(pBP!==null?pBP*w.bp:0)+(pBK!==null?pBK*w.bk:0)
-    +(pHA!==null?pHA*w.ha:0);
-  var rawContrib=rawScore*0.90;
-
-  var epsHighBonus=cand.eps_new_high?5:0;
-  var revHighBonus=cand.rev_new_high?3:0;
-  var beatBonus=cand.beatBonus||0;
+  var rawScore=pEG*w.eg+pRG*w.rg+(pEA!==null?pEA*w.ea:0)+(pRA!==null?pRA*w.ra:0)+(pBP!==null?pBP*w.bp:0)+(pBK!==null?pBK*w.bk:0)+(pHA!==null?pHA*w.ha:0);
+  var rawC=rawScore*0.90;
+  var epsHB=cand.eps_new_high?5:0,revHB=cand.rev_new_high?3:0,beatB=cand.beatBonus||0;
   var epsUpg=cand.bk_eps_1m!==null?cand.bk_eps_1m:cand.bk_eps_1w;
   var epsBk=epsUpg!==null?epsUpg:0,revBk=cand.bk_rev_1m!==null?cand.bk_rev_1m:0;
-  var epsBonus=epsBk>15?6:epsBk>5?4:epsBk>2?2:0;
-  var revBonus=revBk>15?4:revBk>5?3:revBk>2?2:0;
-  var bothBonus=(epsBonus>0&&revBonus>0)?2:0;
-  var eps1w=cand.bk_eps_1w!==null?cand.bk_eps_1w:0,rev1w=cand.bk_rev_1w!==null?cand.bk_rev_1w:0;
-  var wkMod=0;
-  if(eps1w>0||rev1w>0) wkMod=1;
-  else if(eps1w<-3||rev1w<-3) wkMod=-2;
-  else if(eps1w<0||rev1w<0) wkMod=-1;
-  var bkBonusTotal=Math.max(0,epsBonus+revBonus+bothBonus+wkMod);
-  var totalBonus=epsHighBonus+revHighBonus+beatBonus+bkBonusTotal;
-  var ignScore=Math.min(99,Math.round(rawContrib+totalBonus));
+  var epsB=epsBk>15?6:epsBk>5?4:epsBk>2?2:0;
+  var revB=revBk>15?4:revBk>5?3:revBk>2?2:0;
+  var bothB=(epsB>0&&revB>0)?2:0;
+  var eps1w=cand.bk_eps_1w||0,rev1w=cand.bk_rev_1w||0;
+  var wkMod=(eps1w>0||rev1w>0)?1:(eps1w<-3||rev1w<-3)?-2:(eps1w<0||rev1w<0)?-1:0;
+  var bkT=Math.max(0,epsB+revB+bothB+wkMod);
+  var totB=epsHB+revHB+beatB+bkT;
+  var ign=Math.min(99,Math.round(rawC+totB));
   var mc=(cand.lt?1:0)+(cand.mt?1:0)+(cand.st?1:0);
-  var maMult=mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55;
-  var rankScore=Math.round(ignScore*maMult*10)/10;
+  var maMult=mc===3?1:mc===2?.85:mc===1?.70:.55;
+  var rnk=Math.round(ign*maMult*10)/10;
 
   function pL(v){return v===null?'—':v.toFixed(1)+'%';}
-  function rowHtml(label,rawVal,weight,pts,note,dim){
+  function row(lbl,val,wt,pts,note,dim){
     var has=pts!==null;
     var col=has?(pts>=70?'var(--green)':pts>=40?'var(--amber)':'var(--red)'):'var(--text-dim)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
-      +'<td style="padding:4px 6px 4px 0;font-size:9px;color:'+(dim?'var(--text-dim)':'var(--text-secondary)')+';white-space:nowrap;">'+label+'</td>'
-      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;white-space:nowrap;">'+rawVal+'</td>'
-      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;">'+(weight*100).toFixed(0)+'%</td>'
-      +'<td style="padding:4px 0 4px 4px;min-width:70px;">'
-        +'<div style="display:flex;align-items:center;gap:4px;">'
-          +'<div style="flex:1;height:4px;background:var(--surface3);border-radius:2px;min-width:32px;">'
-            +(has?'<div style="width:'+Math.round(pts)+'%;height:100%;background:'+col+';border-radius:2px;"></div>':'')
-          +'</div>'
-          +'<span style="font-size:9px;font-weight:700;color:'+col+';min-width:20px;text-align:right;">'+(has?pts.toFixed(0):'n/a')+'</span>'
-        +'</div>'
-      +'</td>'
-      +'<td style="padding:4px 0 4px 6px;font-size:8px;color:var(--text-dim);white-space:nowrap;">'+(note||'')+'</td>'
-      +'</tr>';
+      +'<td style="padding:4px 6px 4px 0;font-size:9px;color:'+(dim?'var(--text-dim)':'var(--text-secondary)')+';white-space:nowrap;">'+lbl+'</td>'
+      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;white-space:nowrap;">'+val+'</td>'
+      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;">'+(wt*100).toFixed(0)+'%</td>'
+      +'<td style="padding:4px 0 4px 4px;min-width:70px;"><div style="display:flex;align-items:center;gap:4px;">'
+        +'<div style="flex:1;height:4px;background:var(--surface3);border-radius:2px;min-width:32px;">'+(has?'<div style="width:'+Math.round(pts)+'%;height:100%;background:'+col+';border-radius:2px;"></div>':'')+'</div>'
+        +'<span style="font-size:9px;font-weight:700;color:'+col+';min-width:20px;text-align:right;">'+(has?pts.toFixed(0):'n/a')+'</span>'
+      +'</div></td>'
+      +'<td style="padding:4px 0 4px 6px;font-size:8px;color:var(--text-dim);white-space:nowrap;">'+(note||'')+'</td></tr>';
   }
-  function bonusRow(label,pts,note){
+  function brow(lbl,pts,note){
     var col=pts>0?'var(--green)':pts<0?'var(--red)':'var(--text-dim)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
-      +'<td style="padding:3px 6px 3px 0;font-size:9px;color:var(--text-secondary);" colspan="2">'+label+'</td>'
-      +'<td></td>'
-      +'<td style="padding:3px 0 3px 6px;font-size:9px;font-weight:700;color:'+col+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
-      +'<td style="padding:3px 0 3px 6px;font-size:8px;color:var(--text-dim);">'+(note||'')+'</td>'
-      +'</tr>';
+      +'<td style="padding:3px 6px 3px 0;font-size:9px;color:var(--text-secondary);" colspan="2">'+lbl+'</td>'
+      +'<td></td><td style="padding:3px 0 3px 6px;font-size:9px;font-weight:700;color:'+col+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
+      +'<td style="padding:3px 0 3px 6px;font-size:8px;color:var(--text-dim);">'+(note||'')+'</td></tr>';
   }
 
-  var html=debugHtml;
-  html+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Score Breakdown</div>';
-  html+='<table style="width:100%;border-collapse:collapse;">';
-  html+='<tr style="border-bottom:1px solid var(--border);">'
+  var h=dbg;
+  h+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Score Breakdown</div>';
+  h+='<table style="width:100%;border-collapse:collapse;">'
+    +'<tr style="border-bottom:1px solid var(--border);">'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;">Component</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Value</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Wt</th>'
     +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Pctile</th>'
-    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Note</th>'
-    +'</tr>';
-  html+=rowHtml('Half beat vs prior yr',pL(cand.beat_prior),w.bp,pBP,cand.beat_prior!==null?cand.beat_prior.toFixed(0)+'% beat':notes.bp,cand.beat_prior===null);
-  html+=rowHtml('fc EPS growth',pL(cand.fc_eps_g)+(cand.fc_eps_g_capped!==cand.fc_eps_g?' →'+pL(cand.fc_eps_g_capped):''),w.eg,pEG,'capped 4×Rev','');
-  html+=rowHtml('fc Revenue growth',pL(cand.fc_rev_g),w.rg,pRG,'','');
-  html+=rowHtml('EPS & Rev breakout',pL(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'vs prior max',cand.breakout_pct===null);
-  html+=rowHtml('Half-yr accel',pL(cand.half_accel),w.ha,pHA,cand.half_accel===null?notes.ha:accelBase.split(' ')[0],cand.half_accel===null);
-  html+=rowHtml('EPS accel (fc vs act)',pL(cand.eps_accel),w.ea,pEA,cand.eps_accel===null?notes.ea:accelBase,cand.eps_accel===null);
-  html+=rowHtml('Rev accel',pL(cand.rev_accel),w.ra,pRA,cand.rev_accel===null?notes.ra:accelBase,cand.rev_accel===null);
-  html+='</table>';
-
-  html+='<div style="margin:10px 0 8px;display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;">'
+    +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Note</th></tr>';
+  h+=row('Half beat vs prior yr',pL(cand.beat_prior),w.bp,pBP,cand.beat_prior!==null?cand.beat_prior.toFixed(0)+'% beat':notes.bp,cand.beat_prior===null);
+  h+=row('fc EPS growth',pL(cand.fc_eps_g)+(cand.fc_eps_g_capped!==cand.fc_eps_g?' →'+pL(cand.fc_eps_g_capped):''),w.eg,pEG,'capped 4×Rev','');
+  h+=row('fc Revenue growth',pL(cand.fc_rev_g),w.rg,pRG,'','');
+  h+=row('EPS & Rev breakout',pL(cand.breakout_pct),w.bk,pBK,cand.breakout_pct===null?notes.bk:'vs prior max',cand.breakout_pct===null);
+  h+=row('Half-yr accel',pL(cand.half_accel),w.ha,pHA,cand.half_accel===null?notes.ha:'H1/H2 actuals',cand.half_accel===null);
+  h+=row('EPS accel (fc vs act)',pL(cand.eps_accel),w.ea,pEA,cand.eps_accel===null?notes.ea:accelBase,cand.eps_accel===null);
+  h+=row('Rev accel',pL(cand.rev_accel),w.ra,pRA,cand.rev_accel===null?notes.ra:accelBase,cand.rev_accel===null);
+  h+='</table>';
+  h+='<div style="margin:10px 0 8px;display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;">'
     +'<span style="font-size:9px;color:var(--text-dim);">Raw score × 0.90</span>'
-    +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+rawContrib.toFixed(1)+'</span></div>';
-
-  html+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>';
-  html+='<table style="width:100%;border-collapse:collapse;">';
-  html+=bonusRow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHighBonus,cand.eps_new_high?'+5pts':'—');
-  html+=bonusRow('fc Rev new high '+(cand.rev_new_high?'✓':'✗'),revHighBonus,cand.rev_new_high?'+3pts':'—');
-  html+=bonusRow('Standout beat >25%'+(beatBonus?' 🔥':''),beatBonus,beatBonus?'+3 ('+cand.beat_prior.toFixed(1)+'%)':'—');
-  html+=bonusRow('Broker EPS 1m '+(epsUpg!==null?epsUpg.toFixed(2)+'%':'n/a'),epsBonus,epsBonus?'+'+epsBonus:'—');
-  html+=bonusRow('Broker Rev 1m '+(revBk?revBk.toFixed(2)+'%':'n/a'),revBonus,revBonus?'+'+revBonus:'—');
-  if(epsBonus&&revBonus) html+=bonusRow('Both upgraded',bothBonus,'+2 extra');
-  html+=bonusRow('1w momentum (eps='+eps1w.toFixed(2)+'% rev='+rev1w.toFixed(2)+'%)',wkMod,wkMod===1?'+1 live':wkMod===-1?'−1 mild':wkMod===-2?'−2 sharp':'neutral');
-  html+='</table>';
-
-  html+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
-  html+='<div style="display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--text-dim);">Total bonuses</span><span style="font-size:10px;font-weight:700;color:var(--green);">+'+totalBonus+'</span></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition (capped 99)</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+ignScore+'</span></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:9px;color:var(--text-dim);">MAs '
-      +(cand.lt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 200d '
-      +(cand.mt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 100d '
-      +(cand.st?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 50d → ×'+maMult.toFixed(2)
-    +'</span>'
-    +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+rankScore.toFixed(0)+'</span></div>';
-  html+='</div>';
-  return html;
+    +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+rawC.toFixed(1)+'</span></div>';
+  h+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>';
+  h+='<table style="width:100%;border-collapse:collapse;">';
+  h+=brow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHB,cand.eps_new_high?'+5pts':'—');
+  h+=brow('fc Rev new high '+(cand.rev_new_high?'✓':'✗'),revHB,cand.rev_new_high?'+3pts':'—');
+  h+=brow('Standout beat >25%'+(beatB?' 🔥':''),beatB,beatB?'+3 ('+cand.beat_prior.toFixed(1)+'%)':'—');
+  h+=brow('Broker EPS 1m '+(epsUpg!==null?epsUpg.toFixed(2)+'%':'n/a'),epsB,epsB?'+'+epsB:'—');
+  h+=brow('Broker Rev 1m '+(revBk?revBk.toFixed(2)+'%':'n/a'),revB,revB?'+'+revB:'—');
+  if(epsB&&revB) h+=brow('Both upgraded',bothB,'+2 extra');
+  h+=brow('1w momentum (eps='+eps1w.toFixed(2)+'% rev='+rev1w.toFixed(2)+'%)',wkMod,wkMod===1?'+1 live':wkMod===-1?'−1 mild':wkMod===-2?'−2 sharp':'neutral');
+  h+='</table>';
+  h+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
+  h+='<div style="display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--text-dim);">Total bonuses</span><span style="font-size:10px;font-weight:700;color:var(--green);">+'+totB+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition (capped 99)</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+ign+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;">'
+    +'<span style="font-size:9px;color:var(--text-dim);">MAs '+(cand.lt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 200d '+(cand.mt?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 100d '+(cand.st?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>')+' 50d → ×'+maMult.toFixed(2)+'</span>'
+    +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+rnk.toFixed(0)+'</span></div>';
+  h+='</div>';
+  return h;
 }
 
 function buildTrailBreakdown(cand){
   var tAEC=ignTrailData.map(function(c){return c.eps_cagr;});
   var tARC=ignTrailData.map(function(c){return c.rev_cagr;});
   var tABP=ignTrailData.filter(function(c){return c.beat_prior!==null;}).map(function(c){return c.beat_prior;});
-  var html='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Trailing Track</div>';
-  function bRow(lbl,val,pct,wt){
+  var h='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Trailing Track</div>';
+  function br(lbl,val,pct,wt){
     var col=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
       +'<td style="padding:4px 6px 4px 0;font-size:9px;color:var(--text-secondary);">'+lbl+'</td>'
@@ -1971,23 +1918,22 @@ function buildTrailBreakdown(cand){
       +'<td style="padding:4px 0 4px 6px;"><div style="display:flex;align-items:center;gap:4px;">'
         +'<div style="flex:1;height:4px;background:var(--surface3);border-radius:2px;">'
           +'<div style="width:'+Math.round(pct)+'%;height:100%;background:'+col+';border-radius:2px;"></div>'
-        +'</div>'
-        +'<span style="font-size:9px;font-weight:700;color:'+col+';">'+pct.toFixed(0)+'</span>'
+        +'</div><span style="font-size:9px;font-weight:700;color:'+col+';">'+pct.toFixed(0)+'</span>'
       +'</div></td></tr>';
   }
-  html+='<table style="width:100%;border-collapse:collapse;">';
-  html+=bRow('EPS CAGR',cand.eps_cagr!==null?cand.eps_cagr.toFixed(1)+'%':'—',cand.eps_cagr!==null?ignPct(tAEC,cand.eps_cagr):0,40);
-  html+=bRow('Rev CAGR',cand.rev_cagr!==null?cand.rev_cagr.toFixed(1)+'%':'—',cand.rev_cagr!==null?ignPct(tARC,cand.rev_cagr):0,30);
-  html+=bRow('Half beat vs prior',cand.beat_prior!==null?cand.beat_prior.toFixed(1)+'%':'—',cand.beat_prior!==null?ignPct(tABP,cand.beat_prior):10,20);
-  html+=bRow('Beat vs 3yr avg',cand.beat_3yr!==null?cand.beat_3yr.toFixed(1)+'%':'—',cand.beat_3yr!==null?ignPct(tABP,cand.beat_3yr):5,10);
-  html+='</table>';
+  h+='<table style="width:100%;border-collapse:collapse;">';
+  h+=br('EPS CAGR',cand.eps_cagr!==null?cand.eps_cagr.toFixed(1)+'%':'—',cand.eps_cagr!==null?ignPct(tAEC,cand.eps_cagr):0,40);
+  h+=br('Rev CAGR',cand.rev_cagr!==null?cand.rev_cagr.toFixed(1)+'%':'—',cand.rev_cagr!==null?ignPct(tARC,cand.rev_cagr):0,30);
+  h+=br('Half beat vs prior',cand.beat_prior!==null?cand.beat_prior.toFixed(1)+'%':'—',cand.beat_prior!==null?ignPct(tABP,cand.beat_prior):10,20);
+  h+=br('Beat vs 3yr avg',cand.beat_3yr!==null?cand.beat_3yr.toFixed(1)+'%':'—',cand.beat_3yr!==null?ignPct(tABP,cand.beat_3yr):5,10);
+  h+='</table>';
   var mc=(cand.lt?1:0)+(cand.mt?1:0)+(cand.st?1:0);
-  var maMult=mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55;
-  html+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition ×0.90 cap 99</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+cand.ignition+'</span></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">MA mult '+mc+'/3 → ×'+maMult.toFixed(2)+'</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+cand.rank.toFixed(0)+'</span></div>';
-  html+='</div>';
-  return html;
+  var maMult=mc===3?1:mc===2?.85:mc===1?.70:.55;
+  h+='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px;">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">Ignition ×0.90 cap 99</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--amber);">'+cand.ignition+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:9px;color:var(--text-dim);">MA mult '+mc+'/3 → ×'+maMult.toFixed(2)+'</span><span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+cand.rank.toFixed(0)+'</span></div>';
+  h+='</div>';
+  return h;
 }
 
 function downloadRichCache(){
@@ -1995,11 +1941,10 @@ function downloadRichCache(){
   if(!rich||!Object.keys(rich).length){showToast('No parsed cache — upload File 4 first','warn');return;}
   var blob=new Blob([JSON.stringify(rich,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url;
+  var a=document.createElement('a');a.href=url;
   a.download='ignition-richcache-'+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).replace(/ /g,'-')+'.json';
   a.click();URL.revokeObjectURL(url);
-  showToast('✓ Downloaded richCache — '+Object.keys(rich).length+' tickers','ok');
+  showToast('✓ Downloaded — '+Object.keys(rich).length+' tickers','ok');
 }
 
 function closePopup(){
