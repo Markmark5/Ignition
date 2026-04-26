@@ -481,7 +481,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
       <div>fc EPS forecast new high</div><div style="color:var(--green);text-align:right;">+5pts</div>
       <div>fc Revenue forecast new high</div><div style="color:var(--green);text-align:right;">+3pts</div>
-      <div>Standout half-year beat &gt;25%</div><div style="color:var(--green);text-align:right;">+3pts 🔥🔥</div>
+      <div>Standout half-year beat &gt;25%</div><div style="color:var(--text-dim);text-align:right;">🔥🔥 flag only</div>
       <div>Broker EPS 1m &gt;2%/&gt;5%/&gt;15%</div><div style="color:var(--green);text-align:right;">+2/+4/+6pts 🔥</div>
       <div>Broker Rev 1m &gt;2%/&gt;5%/&gt;15%</div><div style="color:var(--green);text-align:right;">+2/+3/+4pts 🔥</div>
       <div>Both EPS & Rev upgraded</div><div style="color:var(--green);text-align:right;">+2pts extra 🔥</div>
@@ -1493,7 +1493,7 @@ function ignRun(){
           var revPassesFloor=(revAct!==null&&revAct>=5)||(fcRev!==null&&fcRev>=5);
           var revFloorMult=revPassesFloor?1.0:0.5;
           var bonus=c.eps_new_high*5+c.rev_new_high*3;
-          var beatBonus=c.beat_prior!==null&&c.beat_prior>25?3:0;
+          var beatBonus=0; /* standout beat >25% shown as 🔥🔥 but not scored — already captured in beat percentile */
           var epsUpg=c.bk_eps_1m!==null?c.bk_eps_1m:c.bk_eps_1w;
           var epsBk=epsUpg!==null?epsUpg:0,revBk=c.bk_rev_1m!==null?c.bk_rev_1m:0;
           var epsBonus=epsBk>15?6:epsBk>5?4:epsBk>2?2:0;
@@ -1612,7 +1612,7 @@ function ignYrEnd(d){
 function ignTidmCell(c){
   /* Fixed emoji slots — each 14px wide, positions consistent regardless of content */
   var s1=c.brokerBonus&&c.brokerBonus>0?'🔥':'<span style="opacity:0;">🔥</span>';  /* broker upgrade */
-  var s2=c.beatBonus&&c.beatBonus>0?'🔥':'<span style="opacity:0;">🔥</span>';      /* standout beat */
+  var s2=c.beat_prior&&c.beat_prior>25?'🔥':'<span style="opacity:0;">🔥</span>';      /* standout beat */
   var s3=c.acq_flag?'<span style="color:var(--red);" title="Acq>15%rev">⚑</span>':'<span style="opacity:0;">⚑</span>'; /* acquisition flag */
   var s4='<span style="opacity:0;">·</span>';  /* reserved */
   var s5='<span style="opacity:0;">·</span>';  /* reserved */
@@ -2131,7 +2131,7 @@ function buildScoreBreakdown(cand,r1){
   h+='<table style="width:100%;border-collapse:collapse;">';
   h+=brow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHB,cand.eps_new_high?'+5pts':'—');
   h+=brow('fc Rev new high '+(cand.rev_new_high?'✓':'✗'),revHB,cand.rev_new_high?'+3pts':'—');
-  h+=brow('Standout beat >25%'+(beatB?' 🔥':''),beatB,beatB?'+3 ('+cand.beat_prior.toFixed(1)+'%)':'—');
+  h+=brow('Standout beat >25%'+(cand.beat_prior&&cand.beat_prior>25?' 🔥🔥':''),0,cand.beat_prior&&cand.beat_prior>25?'flag only ('+cand.beat_prior.toFixed(1)+'%)':'—');
   h+=brow('Broker EPS 1m '+(epsUpg!==null?epsUpg.toFixed(2)+'%':'n/a'),epsB,epsB?'+'+epsB:'—');
   h+=brow('Broker Rev 1m '+(revBk?revBk.toFixed(2)+'%':'n/a'),revB,revB?'+'+revB:'—');
   if(epsB&&revB) h+=brow('Both upgraded',bothB,'+2 extra');
