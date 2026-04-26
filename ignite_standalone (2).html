@@ -712,6 +712,9 @@ function parseTxtBlocks(text, fname){
         else{d[key+'_h1']=pHalf(m[1]);d[key+'_h2']=pHalf(m[2]);}
       }
     }
+    /* Also parse → FY: total from Current line as fallback when both halves are null */
+    var curFyM=sec.match(/Current\s+H1 \/ H2\s*:.*\u2192\s*FY:\s*([\d,.-]+)/);
+    if(curFyM) d['cur_fy']=pHalf(curFyM[1]);
     return d;
   }
 
@@ -1749,7 +1752,7 @@ function openPopup(tidm){
     var richR1={
       'TIDM':tidm,
       /* FY act: Q4/Q1 = H1+H2 complete; Q2/Q3 = null (current FY not yet complete) */
-      'FY EPS': isH1?null:(richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):null),
+      'FY EPS': isH1?null:(richEps('cur_h1')!==null&&richEps('cur_h2')!==null?(richEps('cur_h1')+richEps('cur_h2')):(rich.eps&&rich.eps.cur_fy!==undefined?rich.eps.cur_fy:null)),
       '1y ago FY EPS': richEps('1y_h1')!==null&&richEps('1y_h2')!==null?(richEps('1y_h1')+richEps('1y_h2')):null,
       '2y ago FY EPS': richEps('2y_h1')!==null&&richEps('2y_h2')!==null?(richEps('2y_h1')+richEps('2y_h2')):null,
       'H1 EPS': richEps('cur_h1'), '1y ago H1 EPS': richEps('1y_h1'),
@@ -1759,7 +1762,7 @@ function openPopup(tidm){
       'fc EPS': (rich.eps&&rich.eps.fc1!=null)?rich.eps.fc1:(f5.fc_eps||null),
       '2y fc EPS': (rich.eps&&rich.eps.fc2!=null)?rich.eps.fc2:null,
       /* FY Rev act: same Q routing */
-      'FY Turnover (m)': isH1?null:(richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):null),
+      'FY Turnover (m)': isH1?null:(richRev('cur_h1')!==null&&richRev('cur_h2')!==null?(richRev('cur_h1')+richRev('cur_h2')):(rich.rev&&rich.rev.cur_fy!==undefined?rich.rev.cur_fy:null)),
       '1y ago FY Turnover (m)': richRev('1y_h1')!==null&&richRev('1y_h2')!==null?(richRev('1y_h1')+richRev('1y_h2')):null,
       '2y ago FY Turnover (m)': richRev('2y_h1')!==null&&richRev('2y_h2')!==null?(richRev('2y_h1')+richRev('2y_h2')):null,
       'H1 Turnover (m)': richRev('cur_h1'), '1y ago H1 Turnover (m)': richRev('1y_h1'),
