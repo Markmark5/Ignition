@@ -469,6 +469,13 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       <div>Revenue acceleration</div><div style="color:var(--amber);text-align:right;">5%</div>
     </div>
     <div style="margin-top:8px;color:var(--text-dim);font-size:9px;">Missing components rescaled. Score capped at 99.</div>
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Score Penalties</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
+      <div>Current half EPS negative</div><div style="color:var(--red);text-align:right;">× 0.40</div>
+      <div>Current half EPS negative AND fc FY EPS also negative</div><div style="color:var(--red);text-align:right;">× 0.28 combined</div>
+      <div>Revenue base floor: neither FY act nor fc rev ≥ £5m</div><div style="color:var(--red);text-align:right;">× 0.50</div>
+    </div>
+    <div style="margin-top:6px;color:var(--text-dim);font-size:9px;">Penalties apply to the raw percentile score only — bonuses are unaffected. Penalties are cumulative (loss × floor if both apply).</div>
     <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Bonuses</div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
       <div>fc EPS forecast new high</div><div style="color:var(--green);text-align:right;">+5pts</div>
@@ -1179,7 +1186,7 @@ function ignTickerSearch(val){
       +'<td class="td td-left">'+ignTidmCell(c)+tag+'</td>'
       +'<td class="td td-left" style="font-size:10px;color:var(--text-secondary);">'+c.name+'</td>'
       +'<td class="td td-left" style="font-size:9px;color:var(--text-dim);">'+c.sector+'</td>'
-      +'<td class="td" style="font-size:9px;color:var(--text-dim);">'+ignFmtYrEnd(c.yr_end)+'</td>'
+      +'<td class="td" style="font-size:9px;color:var(--text-dim);">'+ignYrEnd(c.yr_end)+'</td>'
       +'<td class="td" style="font-size:10px;color:var(--text-dim);">'+c.qtr+'</td>'
       +'<td class="td"><span style="color:var(--text-dim);font-size:9px;">—</span></td>'
       +'<td class="td" colspan="2" style="text-align:center;">'+rnkCell+'&nbsp;'+ignCell+'</td>'
@@ -1460,6 +1467,21 @@ function ignRun(){
                  +(aBP.length&&c.beat_prior!==null?ignPct(aBP,c.beat_prior)*w.bp:0)
                  +(aBK.length&&c.breakout_pct!==null?ignPct(aBK,c.breakout_pct)*w.bk:0)
                  +(aHA.length&&c.half_accel!==null?ignPct(aHA,c.half_accel)*w.ha:0);
+          /* ── Loss-making penalty ── */
+          var f5s=ignFile5Map[c.tidm]||{};
+          var r1s=r1map[c.tidm]||{};
+          var curHalfEps=ignF(r1s[((c.qtr==='Q2'||c.qtr==='Q3')?'H1':'H2')+' EPS']);
+          var fcFyEps=ignF(r1s['fc EPS'])||f5s.fc_eps||null;
+          var lossMult=1.0;
+          if(curHalfEps!==null&&curHalfEps<0){
+            lossMult*=0.4;
+            if(fcFyEps!==null&&fcFyEps<0) lossMult*=0.7;
+          }
+          /* ── Revenue base floor ── */
+          var revAct=ignF(r1s['FY Turnover (m)'])||f5s.rev_act||null;
+          var fcRev=ignF(r1s['fc Turnover (m)'])||f5s.fc_rev||null;
+          var revPassesFloor=(revAct!==null&&revAct>=5)||(fcRev!==null&&fcRev>=5);
+          var revFloorMult=revPassesFloor?1.0:0.5;
           var bonus=c.eps_new_high*5+c.rev_new_high*3;
           var beatBonus=c.beat_prior!==null&&c.beat_prior>25?3:0;
           var epsUpg=c.bk_eps_1m!==null?c.bk_eps_1m:c.bk_eps_1w;
@@ -1475,7 +1497,8 @@ function ignRun(){
           else if(eps1w<0||rev1w<0) wkMod=-1;
           bkBonus=Math.max(0,bkBonus+wkMod);
           c.beatBonus=beatBonus;c.brokerBonus=bkBonus;
-          c.ignition=Math.min(99,Math.round(raw*0.90+bonus+beatBonus+bkBonus));
+          c.lossMult=lossMult;c.revFloorMult=revFloorMult;
+          c.ignition=Math.min(99,Math.round(raw*0.90*lossMult*revFloorMult+bonus+beatBonus+bkBonus));
           var mc=(c.lt?1:0)+(c.mt?1:0)+(c.st?1:0);
           c.rank=Math.round(c.ignition*(mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55)*10)/10;
         }
@@ -2029,6 +2052,15 @@ function buildScoreBreakdown(cand,r1){
   h+='<div style="margin:10px 0 8px;display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;">'
     +'<span style="font-size:9px;color:var(--text-dim);">Raw score × 0.90</span>'
     +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+rawC.toFixed(1)+'</span></div>';
+  /* Penalty rows */
+  var lm=cand.lossMult!==undefined?cand.lossMult:1.0;
+  var rm=cand.revFloorMult!==undefined?cand.revFloorMult:1.0;
+  if(lm<1.0||rm<1.0){
+    h+='<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:3px;">';
+    if(lm<1.0) h+='<div style="display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--red);">⚠ Loss-making penalty (half EPS &lt; 0'+(lm===0.28?' + fc FY &lt; 0':'')+')</span><span style="font-size:9px;font-weight:700;color:var(--red);">×'+lm.toFixed(2)+'</span></div>';
+    if(rm<1.0) h+='<div style="display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--red);">⚠ Revenue base floor (&lt; £5m)</span><span style="font-size:9px;font-weight:700;color:var(--red);">×0.50</span></div>';
+    h+='</div>';
+  }
   h+='<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>';
   h+='<table style="width:100%;border-collapse:collapse;">';
   h+=brow('fc EPS new high '+(cand.eps_new_high?'✓':'✗'),epsHB,cand.eps_new_high?'+5pts':'—');
