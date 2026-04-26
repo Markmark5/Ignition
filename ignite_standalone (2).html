@@ -1811,9 +1811,14 @@ function openPopup(tidm){
   }
 
   var qtr=cand.qtr||'';var useH1=(qtr==='Q2'||qtr==='Q3'),half=useH1?'H1':'H2';
-  /* Year labels derived from yr_end */
+  /* Year labels derived from yr_end — handles dd/mm/yy and dd/mm/yyyy */
   var yrEndYear=null;
-  if(cand.yr_end){var yrM=cand.yr_end.match(/(\d{4})/);if(yrM)yrEndYear=parseInt(yrM[1]);}
+  if(cand.yr_end){
+    var yrM4=cand.yr_end.match(/(\d{4})$/);
+    var yrM2=cand.yr_end.match(/(\d{2})$/);
+    if(yrM4) yrEndYear=parseInt(yrM4[1]);
+    else if(yrM2) yrEndYear=2000+parseInt(yrM2[1]);
+  }
   var yFc1=yrEndYear?String(yrEndYear):'fc FY1';
   var yAct=yrEndYear?(useH1?String(yrEndYear):String(yrEndYear-1)):'FY act';
   var y1y=yrEndYear?(useH1?String(yrEndYear-1):String(yrEndYear-2)):'1y ago';
@@ -1912,14 +1917,6 @@ function openPopup(tidm){
           +'<th style="'+thStyle('var(--green)')+'">fc uplift%</th>'
           +'<th style="border-left:1px solid var(--border);'+thStyle('var(--amber)')+'">'+colFc2+'</th>'
         +'</tr>'
-        +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
-          +'<td style="'+tdStyle()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyE_2y,1))+'</td>'
-          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_2y,1):fmtN(fyE_1y,1))+'</td>'
-          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_1y,1):fmtN(fyE_cur,1))+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fcEps,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):(fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null)):null,1,'%')+'</td>'
-          +'<td style="border-left:1px solid var(--border);'+tdStyle()+'">'+fmtN(fcEps2,1)+'</td>'
-        +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">Revenue (m)</td>'
           +'<td style="'+tdStyle()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyR_2y,1))+'</td>'
           +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyR_2y,1):fmtN(fyR_1y,1))+'</td>'
@@ -1927,6 +1924,14 @@ function openPopup(tidm){
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtC(fcRev!==null?(fyR_cur!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):(fyR_1y!==null&&fyR_1y!==0?chg(fcRev,fyR_1y):null)):null,1,'%')+'</td>'
           +'<td style="border-left:1px solid var(--border);'+tdStyle()+'">'+fmtN(fcRev2,1)+'</td>'
+        +'</tr>'
+        +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyE_2y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_2y,1):fmtN(fyE_1y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_1y,1):fmtN(fyE_cur,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+fmtN(fcEps,1)+'</td>'
+          +'<td style="'+tdStyle()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):(fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null)):null,1,'%')+'</td>'
+          +'<td style="border-left:1px solid var(--border);'+tdStyle()+'">'+fmtN(fcEps2,1)+'</td>'
         +'</tr>'
       +'</table>'
       +'<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px;">'
@@ -1943,14 +1948,14 @@ function openPopup(tidm){
           +'<th style="'+thStyle('var(--green)')+'">'+half+'%</th>'
           +'<th style="border-left:1px solid var(--border);'+thStyle('var(--blue)')+'">Increase vs<br>3yr avg</th>'
         +'</tr>'
-        +hRow('EPS (p)',hE_cur,hE_1y,hE_2y,hE_3y)
         +hRow('Revenue (m)',hR_cur,hR_1y,hR_2y,hR_3y)
+        +hRow('EPS (p)',hE_cur,hE_1y,hE_2y,hE_3y)
         +hRow('PBT (m)',hP_cur,hP_1y,hP_2y,hP_3y)
       +'</table>'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-top:24px;margin-bottom:8px;">Breakout Flags</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:16px;font-size:10px;padding-left:80px;">'
-        +bFlag(epsBreak,'EPS actual new high')+bFlag(revBreak,'Revenue actual new high')
-        +bFlag(fcEpsBreak,'fc EPS new high')+bFlag(fcRevBreak,'fc Revenue new high')
+        +bFlag(revBreak,'Revenue actual new high')+bFlag(epsBreak,'EPS actual new high')
+        +bFlag(fcRevBreak,'fc Revenue new high')+bFlag(fcEpsBreak,'fc EPS new high')
       +'</div>'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Debt & Coverage</div>'
       +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;">'
