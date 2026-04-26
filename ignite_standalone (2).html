@@ -343,6 +343,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     <input class="ctrl-input" id="ign-aim-rev" type="number" value="5" min="0" max="50">
   </div>
   <label class="ctrl-check"><input type="checkbox" id="ign-excl-lt" checked> Excl falling 200d</label>
+  <label class="ctrl-check"><input type="checkbox" id="ign-hard-filter" checked onchange="if(ignData.length)ignRender();"> Hard filter</label>
   <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
   <div class="ctrl-group">
     <span class="ctrl-label" title="Half beat vs prior yr weight %">Beat%</span>
@@ -1338,6 +1339,7 @@ function ignRun(){
   setTimeout(function(){
     try{
       var cands=[],mainTidms={};
+      var applyHardFilter=document.getElementById('ign-hard-filter').checked;
       for(var tidm in ignFile5Map){
         var f5=ignFile5Map[tidm];
         if(!f5||(!f5.lt&&exclLT)) continue;
@@ -1345,19 +1347,23 @@ function ignRun(){
         var f350=ignIs350(f5.idx_mem),qtr=f5.qtr;
         var fcEpsG=ignGrowthPct(f5.eps_act,f5.fc_eps);
         var fcRevG=(f5.rev_act&&f5.rev_act>0&&f5.fc_rev)?((f5.fc_rev/f5.rev_act-1)*100):null;
-        if(fcEpsG===null||fcRevG===null) continue;
-        if(fcEpsG<(f350?f350e:aime)||fcRevG<(f350?f350r:aimr)) continue;
+        /* Hard filter checks — tag rather than skip */
+        var hardFail=null;
+        if(fcEpsG===null||fcRevG===null) hardFail='No forecast data';
+        if(!hardFail&&(fcEpsG<(f350?f350e:aime)||fcRevG<(f350?f350r:aimr))) hardFail='Below growth floor';
         var fyEps=ignF(r1['FY EPS'])||f5.eps_act;
         var fcEpsR1=ignF(r1['fc EPS'])||f5.fc_eps;
         var fyRev=ignF(r1['FY Turnover (m)'])||f5.rev_act;
         var fcRevR1=ignF(r1['fc Turnover (m)'])||f5.fc_rev;
-        if(fyEps&&fcEpsR1&&fyEps>0&&fcEpsR1<=fyEps) continue;
-        if(fyRev&&fcRevR1&&fyRev>0&&fcRevR1<=fyRev) continue;
-        if(qtr==='Q2'||qtr==='Q3'){
+        if(!hardFail&&fyEps&&fcEpsR1&&fyEps>0&&fcEpsR1<=fyEps) hardFail='fc EPS not growing';
+        if(!hardFail&&fyRev&&fcRevR1&&fyRev>0&&fcRevR1<=fyRev) hardFail='fc Rev not growing';
+        if(!hardFail&&(qtr==='Q2'||qtr==='Q3')){
           var fc2Eps=ignF(r1['2y fc EPS']);
-          if(fc2Eps!==null&&fcEpsR1!==null&&fcEpsR1>0&&(fc2Eps/fcEpsR1-1)*100<-15) continue;
+          if(fc2Eps!==null&&fcEpsR1!==null&&fcEpsR1>0&&(fc2Eps/fcEpsR1-1)*100<-15) hardFail='FY2 cliff >-15%';
         }
-        var fcEpsGCapped=(fcRevG>0)?Math.min(fcEpsG,Math.max(50,fcRevG*4)):Math.min(fcEpsG,50);
+        if(hardFail&&applyHardFilter) continue;
+        var fcEpsGCapped=(fcRevG&&fcRevG>0)?Math.min(fcEpsG||0,Math.max(50,(fcRevG||0)*4)):Math.min(fcEpsG||0,50);
+        var fcEpsGScore=fcEpsG||0,fcRevGScore=fcRevG||0;
         var fyEps1y=ignF(r1['1y ago FY EPS']),fyRev1y=ignF(r1['1y ago FY Turnover (m)']);
         var fyEps2y=ignF(r1['2y ago FY EPS']),fyRev2y=ignF(r1['2y ago FY Turnover (m)']);
         var fyEpsCur=ignF(r1['FY EPS']),fyRevCur=ignF(r1['FY Turnover (m)']);
@@ -1409,7 +1415,8 @@ function ignRun(){
           bk_eps_1w:f5.bk_eps_1w,bk_eps_1m:f5.bk_eps_1m,
           bk_rev_1w:f5.bk_rev_1w,bk_rev_1m:f5.bk_rev_1m,
           broker_mom:(ignExCache&&ignExCache[tidm]!==undefined)?ignExCache[tidm]:null,
-          trailing:false,eps_cagr:null,rev_cagr:null,brokerBonus:0,beatBonus:0,ignition:0,rank:0
+          trailing:false,eps_cagr:null,rev_cagr:null,brokerBonus:0,beatBonus:0,ignition:0,rank:0,
+          _hardFail:hardFail||null
         });
       }
 
@@ -1522,7 +1529,6 @@ function ignRun(){
       ignData=cands;ignTrailData=trailCands;
       ignSortKey='rank';ignSortAsc=false;
       var badge=document.getElementById('count-badge');
-      badge.textContent=cands.length+' companies'+(trailCands.length?' + '+trailCands.length+' trailing':'');
       badge.style.display='';
       document.getElementById('sort-mode-badge').style.display='';
       ignUpdateSortLabel();
@@ -1633,19 +1639,24 @@ function ignSelectRow(tr){
 
 // ── Render ──
 function ignRender(){
-  var sorted=ignData.slice().sort(function(a,b){
+  var applyHardFilter=document.getElementById('ign-hard-filter').checked;
+  var passed=ignData.filter(function(c){return !c._hardFail;});
+  var failed=ignData.filter(function(c){return !!c._hardFail;});
+  var sorted=passed.slice().sort(function(a,b){
     var av=a[ignSortKey],bv=b[ignSortKey];
     if(av===null||av===undefined) av=ignSortAsc?1e9:-1e9;
     if(bv===null||bv===undefined) bv=ignSortAsc?1e9:-1e9;
     if(typeof av==='string') return ignSortAsc?av.localeCompare(bv):bv.localeCompare(av);
     return ignSortAsc?av-bv:bv-av;
   });
+  var failedSorted=failed.slice().sort(function(a,b){return b.rank-a.rank;});
   var tSorted=ignTrailData.slice().sort(function(a,b){return b.rank-a.rank;});
   ignSelRow=null;
 
-  function buildRow(c,idx,isTrail){
+  function buildRow(c,idx,isTrail,dim){
     var bg=idx%2===0?'var(--bg)':'var(--surface)';
-    return '<tr class="tr-data" style="background:'+bg+';"'
+    var dimStyle=dim?'opacity:0.4;':'';
+    return '<tr class="tr-data" style="background:'+bg+';'+dimStyle+'"'
       +' onclick="ignSelectRow(this)"'
       +' onmouseover="if(!this.classList.contains(\'ign-row-sel\'))this.style.background=\'var(--surface2)\'"'
       +' onmouseout="if(!this.classList.contains(\'ign-row-sel\'))this.style.background=\''+bg+'\'"'
@@ -1670,12 +1681,22 @@ function ignRender(){
   }
 
   var html='';
-  for(var i=0;i<sorted.length;i++) html+=buildRow(sorted[i],i,false);
+  for(var i=0;i<sorted.length;i++) html+=buildRow(sorted[i],i,false,false);
   if(tSorted.length){
     html+='<tr class="tr-sep"><td colspan="16">† Trailing Track — '+tSorted.length+' stocks · no forecasts · EPS CAGR ≥15%</td></tr>';
-    for(var ti=0;ti<tSorted.length;ti++) html+=buildRow(tSorted[ti],ti,true);
+    for(var ti=0;ti<tSorted.length;ti++) html+=buildRow(tSorted[ti],ti,true,false);
+  }
+  if(!applyHardFilter&&failedSorted.length){
+    html+='<tr class="tr-sep"><td colspan="16">⚠ Excluded by hard filter — '+failedSorted.length+' stocks · scored but not ranked</td></tr>';
+    for(var fi=0;fi<failedSorted.length;fi++) html+=buildRow(failedSorted[fi],fi,false,true);
   }
   document.getElementById('ign-body').innerHTML=html||'<tr><td colspan="16" style="padding:30px;text-align:center;color:var(--text-dim);">No stocks passed the filters</td></tr>';
+  /* Update badge */
+  var badge=document.getElementById('count-badge');
+  if(badge){
+    var passCount=sorted.length,trailCount=tSorted.length,failCount=applyHardFilter?0:failedSorted.length;
+    badge.textContent=passCount+' companies'+(trailCount?' + '+trailCount+' trailing':'')+(failCount?' + '+failCount+' excl':'');
+  }
 }
 
 // ── Scorecard popup ──
@@ -1683,7 +1704,27 @@ function openPopup(tidm){
   var cand=null;
   for(var i=0;i<ignData.length;i++){if(ignData[i].tidm===tidm){cand=ignData[i];break;}}
   if(!cand) for(var j=0;j<ignTrailData.length;j++){if(ignTrailData[j].tidm===tidm){cand=ignTrailData[j];break;}}
-  if(!cand) return;
+  if(!cand){
+    var f5b=ignFile5Map[tidm];
+    if(!f5b){showToast('No data for '+tidm,'warn');return;}
+    cand={
+      tidm:tidm,name:f5b.name||tidm,sector:f5b.sector||'—',
+      f350:ignIs350(f5b.idx_mem),idx_mem:f5b.idx_mem||'',
+      yr_end:f5b.yr_end||'',qtr:f5b.qtr||'',
+      fc_eps_g:null,fc_eps_g_capped:null,fc_rev_g:null,
+      eps_accel:null,rev_accel:null,beat_prior:null,beat_3yr:null,
+      eps_new_high:0,rev_new_high:0,acq_flag:false,
+      breakout_pct:null,half_accel:null,
+      lt:f5b.lt,mt:f5b.mt,st:f5b.st,rsi:f5b.rsi,
+      mktcap:f5b.mktcap,shares:f5b.shares,
+      bk_eps_1w:f5b.bk_eps_1w,bk_eps_1m:f5b.bk_eps_1m,
+      bk_rev_1w:f5b.bk_rev_1w,bk_rev_1m:f5b.bk_rev_1m,
+      broker_mom:f5b.broker_mom||null,
+      trailing:false,eps_cagr:null,rev_cagr:null,
+      beatBonus:0,brokerBonus:0,ignition:null,rank:null,
+      lossMult:1,revFloorMult:1,_hardFail:'Not scored'
+    };
+  }
 
   var rows1=exState.rows1||[],rows2=exState.rows2||[],rows3=exState.rows3||[];
   function makeMap(arr){var m={};for(var i=0;i<arr.length;i++){var t=(arr[i]['TIDM']||'').trim().toUpperCase();if(t)m[t]=arr[i];}return m;}
@@ -1943,6 +1984,9 @@ function openPopup(tidm){
 
 function buildScoreBreakdown(cand,r1){
   r1=r1||{};
+  if(cand._hardFail){
+    return '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:10px;color:var(--red);">⚠ Excluded by hard filter: <strong>'+cand._hardFail+'</strong><br><span style="color:var(--text-dim);font-size:9px;margin-top:4px;display:block;">Score shown is indicative only — this ticker does not appear in the ranked list when Hard filter is on.</span></div>';
+  }
   var f5=ignFile5Map[cand.tidm]||{};
   var isH1=(cand.qtr==='Q2'||cand.qtr==='Q3'),hpfx=isH1?'H1':'H2';
   var fyE_cur=ignF(r1['FY EPS']),fyE_1y=ignF(r1['1y ago FY EPS']),fyE_2y=ignF(r1['2y ago FY EPS']);
