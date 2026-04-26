@@ -1819,6 +1819,12 @@ function openPopup(tidm){
   var y1y=yrEndYear?(useH1?String(yrEndYear-1):String(yrEndYear-2)):'1y ago';
   var y2y=yrEndYear?(useH1?String(yrEndYear-2):String(yrEndYear-3)):'2y ago';
   var yFc2=yrEndYear?String(yrEndYear+1):'fc FY2';
+  /* YoY table column labels */
+  var col2y=useH1?'':y2y;          /* Q2/Q3: blank; Q4/Q1: 2y ago year */
+  var col1y=useH1?y2y:y1y;         /* Q2/Q3: 2y ago year; Q4/Q1: 1y ago year */
+  var colAct=useH1?y1y:yAct;       /* Q2/Q3: 1y ago year; Q4/Q1: FY act year */
+  var colFc1='Forecast';            /* always "Forecast" */
+  var colFc2='Forecast Y2';         /* always "Forecast Y2" */
   var hE_cur=fv(r1[half+' EPS']),hE_1y=fv(r1['1y ago '+half+' EPS']),hE_2y=fv(r1['2y ago '+half+' EPS']),hE_3y=fv(r1['3y ago '+half+' EPS']);
   var hR_cur=fv(r1[half+' Turnover (m)']),hR_1y=fv(r1['1y ago '+half+' Turnover (m)']),hR_2y=fv(r1['2y ago '+half+' Turnover (m)']),hR_3y=fv(r1['3y ago '+half+' Turnover (m)']);
   var hP_cur=fv(r2[half+' Pre-tax profit (m)']),hP_1y=fv(r2['1y ago '+half+' Pre-tax profit (m)']),hP_2y=fv(r2['2y ago '+half+' Pre-tax profit (m)']),hP_3y=fv(r2['3y ago '+half+' Pre-tax profit (m)']);
@@ -1899,25 +1905,25 @@ function openPopup(tidm){
       +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;table-layout:fixed;">'+'<colgroup><col style="width:80px"><col style="width:54px"><col style="width:54px"><col style="width:54px"><col style="width:54px"><col style="width:68px"><col style="width:68px"></colgroup>'
         +'<tr style="border-bottom:1px solid var(--border);">'
           +'<th style="'+thStyle('var(--text-dim)')+'text-align:left;"></th>'
-          +'<th style="'+thStyle('var(--text-dim)')+'">'+y2y+'</th>'
-          +'<th style="'+thStyle('var(--text-dim)')+'">'+y1y+'</th>'
-          +'<th style="'+thStyle('var(--text-dim)')+'">'+yAct+'</th>'
-          +'<th style="'+thStyle('var(--amber)')+'">'+yFc1+' fc</th>'
+          +'<th style="'+thStyle('var(--text-dim)')+'">'+col2y+'</th>'
+          +'<th style="'+thStyle('var(--text-dim)')+'">'+col1y+'</th>'
+          +'<th style="'+thStyle('var(--text-dim)')+'">'+colAct+'</th>'
+          +'<th style="'+thStyle('var(--amber)')+'">'+colFc1+'</th>'
           +'<th style="'+thStyle('var(--green)')+'">fc uplift%</th>'
-          +'<th style="border-left:1px solid var(--border);'+thStyle('var(--amber)')+'">'+yFc2+' fc</th>'
+          +'<th style="border-left:1px solid var(--border);'+thStyle('var(--amber)')+'">'+colFc2+'</th>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyE_2y,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyE_1y,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyE_cur,1)+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyE_2y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_2y,1):fmtN(fyE_1y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyE_1y,1):fmtN(fyE_cur,1))+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcEps,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):(fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null)):null,1,'%')+'</td>'
           +'<td style="border-left:1px solid var(--border);'+tdStyle()+'">'+fmtN(fcEps2,1)+'</td>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">Revenue (m)</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyR_2y,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyR_1y,1)+'</td>'
-          +'<td style="'+tdStyle()+'">'+fmtN(fyR_cur,1)+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyR_2y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyR_2y,1):fmtN(fyR_1y,1))+'</td>'
+          +'<td style="'+tdStyle()+'">'+(useH1?fmtN(fyR_1y,1):fmtN(fyR_cur,1))+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtN(fcRev,1)+'</td>'
           +'<td style="'+tdStyle()+'">'+fmtC(fcRev!==null?(fyR_cur!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):(fyR_1y!==null&&fyR_1y!==0?chg(fcRev,fyR_1y):null)):null,1,'%')+'</td>'
           +'<td style="border-left:1px solid var(--border);'+tdStyle()+'">'+fmtN(fcRev2,1)+'</td>'
