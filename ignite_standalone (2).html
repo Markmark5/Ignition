@@ -1673,6 +1673,7 @@ function openPopup(tidm){
   /* Overlay richCache data onto r1/r2/r3 fallbacks */
   /* Use cand.qtr - already correct from scoring, shown in main table */
   var qtrPre=(cand.qtr||'').trim();
+  var f5=ignFile5Map[tidm]||{};
   if(rich){
     function richEps(key){ return rich.eps&&rich.eps[key]!==undefined?rich.eps[key]:null; }
     function richRev(key){ return rich.rev&&rich.rev[key]!==undefined?rich.rev[key]:null; }
@@ -1725,7 +1726,6 @@ function openPopup(tidm){
     if(!r3['Net debt to EBITDA']&&rich.nd_ebitda!==null) r3['Net debt to EBITDA']=rich.nd_ebitda;
     if(!r3['Interest cover']&&rich.int_cover!==null) r3['Interest cover']=rich.int_cover;
   }
-  var f5=ignFile5Map[tidm]||{};
 
   function fv(v){var f=parseFloat(String(v||'').replace(/,/g,'').trim());return isNaN(f)?null:f;}
   function fmtN(v,dp,sfx){
