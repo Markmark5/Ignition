@@ -916,7 +916,8 @@ function ignLoadFile5(rows){
       bk_rev_1m:ignF(r['Broker Turnover upgrade % (1m)']),
       idx_mem:(r['Index membership']||'').trim(),
       new_high:(r['New High?']||'').trim()==='1',
-      price:ignF(r['Price']),
+      price:(function(){var s=(r['Price']||'').trim();var n=parseFloat(s.replace(/[^0-9.-]/g,''));return isNaN(n)?null:n;})(),
+      price_is_pounds:(function(){var s=(r['Price']||'').trim();return s.indexOf('£')!==-1;})(),
       p_lt_21:(r['Price < 21d MA']||'').trim()==='1',
       p_lte_50:(r['Price <= MA (50 SMA)']||'').trim()==='1',
       close_1td:ignF(r['Close 1td ago']),
@@ -1841,8 +1842,14 @@ function openPopup(tidm){
   var ic=fv(r3['Interest cover']),icFc=fv(r3['fc Interest cover']);
   var ndFcf=fv(r3['Net debt to Free cash flow']),ndFcfFc=fv(r3['fc Net debt to Free cash flow']);
   /* Use cand directly for everything already computed during scoring */
-  var price=fv(r2['Close'])||(rich&&rich.close?rich.close:null)||(f5&&f5.close_p?f5.close_p:null)||null;
+  var price=f5.price||(fv(r2['Close'])||(rich&&rich.close?rich.close:null)||(f5&&f5.close_p?f5.close_p:null)||null);
   var ctp=fv(r2['Consensus target price'])||(rich&&rich.ctp?rich.ctp:null)||(f5&&f5.ctp?f5.ctp:null);
+  function fmtPrice(p){
+    if(p===null||p===undefined) return '—';
+    if(f5.price_is_pounds) return '£'+p.toFixed(2);
+    return p.toFixed(2)+'p';
+  }
+  var priceF=fmtPrice(price),ctpF=fmtPrice(ctp);
   var upside=price&&ctp?((ctp/price-1)*100):null;
   var currency=(rich&&rich.currency?rich.currency:(r2['Currency (results)']||'')).trim();
   var currBadge=(currency&&currency!=='GBP'&&currency!=='p')?'<span style="background:var(--amber-dim);color:var(--amber);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;">'+currency+'</span>':'';
@@ -1891,8 +1898,8 @@ function openPopup(tidm){
       +'<div style="display:flex;gap:18px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(cand.shares?Math.round(cand.shares)+'m':'—')+'</div></div>'
-        +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Price</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(price?price.toFixed(0)+'p':'—')+'</div></div>'
-        +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:'+(upside&&upside>0?'var(--green)':'var(--red)')+';">'+ctp.toFixed(0)+'p'+(upside!==null?' ('+fmtC(upside,0,'%')+')':'')+'</div></div>':'')
+        +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Price</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+priceF+'</div></div>'
+        +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:'+(upside&&upside>0?'var(--green)':'var(--red)')+';">'+ctpF+(upside!==null?' ('+fmtC(upside,0,'%')+')':'')+'</div></div>':'')
         +'<div style="text-align:center;background:var(--amber-dim);border:1px solid var(--amber-mid);border-radius:6px;padding:6px 14px;">'
           +'<div style="font-size:8px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;">Ignition</div>'
           +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--amber);">'+cand.ignition+'</div>'
