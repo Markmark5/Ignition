@@ -415,16 +415,15 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th" style="width:58px;" onclick="ignSort('yr_end')">Yr End</th>
         <th class="th" style="width:30px;" onclick="ignSort('qtr')">Q</th>
         <th class="th" style="width:40px;">New Hi</th>
+        <th class="th th-amber" style="width:190px;" id="rank-th"><span id="ign-sort-lbl" onclick="ignCycleSort()" style="cursor:pointer;">⚡ Rank</span></th>
         <th class="th th-blue" style="width:46px;border-left:2px solid var(--border-bright);" title="200d MA">LT</th>
         <th class="th th-blue" style="width:46px;" title="100d MA">MT</th>
         <th class="th th-blue" style="width:46px;" title="50d MA">ST</th>
         <th class="th th-blue" style="width:44px;" onclick="ignSort('rsi')">RSI</th>
         <th class="th" style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('broker_mom')">Broker Mom</th>
-        <th class="th" style="width:130px;border-left:2px solid var(--border-bright);" onclick="ignSort('price')">Price</th>
-        <th class="th" style="width:68px;border-left:1px solid var(--border);" onclick="ignSort('mktcap')">MCap</th>
+        <th class="th" style="width:68px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
         <th class="th" style="width:54px;" onclick="ignSort('shares')">Shares</th>
-        <th class="th" style="width:80px;" onclick="ignSort('ctp')">Consensus TP</th>
-        <th class="th th-amber" style="width:190px;border-left:2px solid var(--border-bright);" id="rank-th"><span id="ign-sort-lbl" onclick="ignCycleSort()" style="cursor:pointer;">⚡ Rank</span></th>
+        <th class="th" style="width:50px;" onclick="ignSort('idx_mem')">Index</th>
       </tr>
     </thead>
     <tbody id="ign-body">
@@ -1661,14 +1660,6 @@ function ignRender(){
   function buildRow(c,idx,isTrail,dim){
     var bg=idx%2===0?'var(--bg)':'var(--surface)';
     var dimStyle=dim?'opacity:0.4;':'';
-    var f5r=ignFile5Map[c.tidm]||{};
-    var rawPrice=f5r.price,prev=f5r.close_1td;
-    var isPounds=f5r.price_is_pounds;
-    var priceStr=rawPrice===null||rawPrice===undefined?'—':(isPounds?'£'+rawPrice.toFixed(2):rawPrice.toFixed(2)+'p');
-    var pchg=(rawPrice&&prev&&prev!==0)?((rawPrice-prev)/prev*100):null;
-    var pchgStr=pchg===null?'—':'<span style="color:'+(pchg>=0?'var(--green)':'var(--red)')+';">'+(pchg>=0?'+':'')+pchg.toFixed(2)+'%</span>';
-    var ctpRaw=f5r.ctp||(c.ctp||null);
-    var ctpStr=ctpRaw===null||ctpRaw===undefined?'—':(isPounds?'£'+ctpRaw.toFixed(2):ctpRaw.toFixed(2)+'p');
     return '<tr class="tr-data" style="background:'+bg+';'+dimStyle+'"'
       +' onclick="ignSelectRow(this)"'
       +' onmouseover="if(!this.classList.contains(\'ign-row-sel\'))this.style.background=\'var(--surface2)\'"'
@@ -1681,16 +1672,15 @@ function ignRender(){
       +'<td>'+ignYrEnd(c.yr_end)+'</td>'
       +'<td>'+ignQtrCell(c.qtr)+'</td>'
       +'<td>'+ignNh(c)+'</td>'
+      +'<td>'+ignBar(c.ignition,c.rank)+'</td>'
       +ignMaCell(c.lt)
       +ignMaCell(c.mt)
       +ignMaCell(c.st)
       +'<td>'+ignRsi(c.rsi)+'</td>'
       +'<td style="border-left:1px solid var(--border);">'+ignFmt(c.broker_mom,2)+'</td>'
-      +'<td style="border-left:2px solid var(--border-bright);white-space:nowrap;"><span style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--amber);">'+priceStr+'</span>'+(pchg!==null?' <span style="font-size:10px;color:'+(pchg>=0?'var(--green)':'var(--red)')+';">('+((pchg>=0?'+':'')+pchg.toFixed(1)+'%)')+'</span>':'')+'</td>'
       +'<td style="border-left:1px solid var(--border);">'+ignMcap(c.mktcap)+'</td>'
       +'<td>'+ignShares(c.shares)+'</td>'
-      +'<td style="font-size:10px;color:var(--text-dim);">'+ctpStr+'</td>'
-      +'<td style="border-left:2px solid var(--border-bright);">'+ignBar(c.ignition,c.rank)+'</td>'
+      +'<td style="font-size:10px;color:var(--text-dim);">'+ignIdxLabel(c)+'</td>'
       +'</tr>';
   }
 
@@ -1906,17 +1896,20 @@ function openPopup(tidm){
         +'<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+cand.sector+' · '+idxShort+(cand.yr_end?' · '+cand.yr_end.replace(/(\d{4})/,function(m,y){return y.slice(2);}):'')+(cand.qtr?' · <span style="color:var(--amber);">'+cand.qtr+'</span>':'')+currBadge+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:18px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
+        +'<div style="text-align:center;">'
+          +'<div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Price</div>'
+          +'<div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amber);white-space:nowrap;">'+priceF+(f5.close_1td&&price?'<span style="font-size:11px;font-weight:500;margin-left:6px;color:'+((price-f5.close_1td)/f5.close_1td>=0?'var(--green)':'var(--red)')+';">('+((price-f5.close_1td)/f5.close_1td>=0?'+':'')+((price-f5.close_1td)/f5.close_1td*100).toFixed(1)+'%)</span>':'')+'</div>'
+        +'</div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(cand.shares?Math.round(cand.shares)+'m':'—')+'</div></div>'
-        +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Price</div><div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--text-primary);">'+priceF+'</div></div>'
         +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:'+(upside&&upside>0?'var(--green)':'var(--red)')+';">'+ctpF+(upside!==null?' ('+fmtC(upside,0,'%')+')':'')+'</div></div>':'')
         +'<div style="text-align:center;background:var(--amber-dim);border:1px solid var(--amber-mid);border-radius:6px;padding:6px 14px;">'
           +'<div style="font-size:8px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;">Ignition</div>'
-          +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--amber);">'+cand.ignition+'</div>'
+          +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--amber);">'+(cand.ignition!==null?cand.ignition:'—')+'</div>'
         +'</div>'
         +'<div style="text-align:center;background:var(--green-dim);border:1px solid rgba(16,185,129,0.2);border-radius:6px;padding:6px 14px;">'
           +'<div style="font-size:8px;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;">Rank</div>'
-          +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--green);">'+cand.rank.toFixed(0)+'</div>'
+          +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--green);">'+(cand.rank!==null?cand.rank.toFixed(0):'—')+'</div>'
         +'</div>'
       +'</div>'
     +'</div>'
