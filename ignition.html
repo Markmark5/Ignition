@@ -333,16 +333,12 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   <button class="btn btn-secondary" id="run-btn" onclick="ignRun()" style="display:none;">▶ Run Scores</button>
   <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
   <div class="ctrl-group">
-    <span class="ctrl-label">FTSE350 EPS≥</span>
+    <span class="ctrl-label">FTSE350 EPS/Rev≥</span>
     <input class="ctrl-input" id="ign-f350-eps" type="number" value="5" min="0" max="50">
-    <span class="ctrl-label">REV≥</span>
-    <input class="ctrl-input" id="ign-f350-rev" type="number" value="3" min="0" max="50">
   </div>
   <div class="ctrl-group">
-    <span class="ctrl-label">AIM/SC EPS≥</span>
+    <span class="ctrl-label">AIM/SC EPS/Rev≥</span>
     <input class="ctrl-input" id="ign-aim-eps" type="number" value="8" min="0" max="50">
-    <span class="ctrl-label">REV≥</span>
-    <input class="ctrl-input" id="ign-aim-rev" type="number" value="5" min="0" max="50">
   </div>
   <label class="ctrl-check"><input type="checkbox" id="ign-excl-lt" checked> Excl falling 200d</label>
   <label class="ctrl-check"><input type="checkbox" id="ign-hard-filter" checked onchange="if(ignData.length)ignRender();"> Hard filter</label>
@@ -386,6 +382,8 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   <span id="f4-name" style="font-size:9px;color:var(--text-dim);">—</span>
   <button class="btn btn-ghost" id="cache-btn" onclick="openGitHubPanel()" style="font-size:9px;padding:4px 10px;display:none;">☁ GitHub Sync</button>
   <button class="btn btn-ghost" id="dl-cache-btn" onclick="downloadRichCache()" style="font-size:9px;padding:4px 10px;display:none;" title="Download parsed cache as JSON">⬇ Cache JSON</button>
+  <span id="last-pulled" style="font-size:9px;color:var(--green);display:none;"></span>
+  <span id="last-pushed" style="font-size:9px;color:var(--blue);display:none;"></span>
 </div>
 
 <!-- Legend -->
@@ -460,7 +458,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   </div>
   <div style="font-size:10px;color:var(--text-secondary);line-height:1.8;">
     <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">Stage 1 — Hard Exclusions</div>
-    <div>fc EPS or fc Rev below current year · EPS floor (FTSE350 &lt;5%, AIM/SC &lt;8%) · Rev floor · 200d MA falling · FY2 cliff &gt;-15% at Q2/Q3</div>
+    <div>fc EPS AND fc Rev both below floor — either passing is enough · FTSE350 ≥5% · AIM/SC ≥8% · fc not growing vs actual · 200d MA falling · FY2 cliff &gt;-15% at Q2/Q3</div>
     <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Stage 2 — Ignition Score (0–99, percentile ranked)</div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
       <div>Latest half beat vs prior year</div><div style="color:var(--amber);text-align:right;">25%</div>
@@ -628,6 +626,8 @@ function onF5Loaded(rows,errors,total){
   document.getElementById('f5-dot').className='status-dot live';
   document.getElementById('f5-status').textContent=ts;
   document.getElementById('last-refresh').textContent='Updated '+ts;
+  var lpEl=document.getElementById('last-pulled');
+  if(lpEl){lpEl.textContent='⬇ Pulled '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});lpEl.style.display='';}
   showToast('✓ File 5 loaded — '+Object.keys(ignFile5Map).length+' tickers','ok');
   /* Always run scores — richCache provides File 4 data if available */
   ignRun();
@@ -992,6 +992,8 @@ function pushToGitHub(){
   doPut(null)
     .then(function(){
       if(btn){btn.textContent='⬆ Pushed · '+label;btn.disabled=false;btn.style.color='var(--green)';}
+      var lpshEl=document.getElementById('last-pushed');
+      if(lpshEl){var pnow=new Date();lpshEl.textContent='⬆ Pushed '+pnow.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+pnow.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});lpshEl.style.display='';}
       showToast('✓ Saved to GitHub · '+label,'ok');
     })
     .catch(function(e){
@@ -1245,9 +1247,9 @@ function ignRun(){
     showToast('Load data first','warn');return;
   }
   var f350e=parseFloat(document.getElementById('ign-f350-eps').value)||5;
-  var f350r=parseFloat(document.getElementById('ign-f350-rev').value)||3;
+  var f350r=f350e;
   var aime=parseFloat(document.getElementById('ign-aim-eps').value)||8;
-  var aimr=parseFloat(document.getElementById('ign-aim-rev').value)||5;
+  var aimr=aime;
   var exclLT=document.getElementById('ign-excl-lt').checked;
 
   var wBeat=Math.max(5,Math.min(60,parseFloat(document.getElementById('w-beat').value)||25))/100;
@@ -1356,7 +1358,7 @@ function ignRun(){
         /* Hard filter checks — tag rather than skip */
         var hardFail=null;
         if(fcEpsG===null||fcRevG===null) hardFail='No forecast data';
-        if(!hardFail&&(fcEpsG<(f350?f350e:aime)||fcRevG<(f350?f350r:aimr))) hardFail='Below growth floor';
+        if(!hardFail&&(fcEpsG<(f350?f350e:aime) && fcRevG<(f350?f350r:aimr))) hardFail='Below growth floor';
         var fyEps=ignF(r1['FY EPS'])||f5.eps_act;
         var fcEpsR1=ignF(r1['fc EPS'])||f5.fc_eps;
         var fyRev=ignF(r1['FY Turnover (m)'])||f5.rev_act;
