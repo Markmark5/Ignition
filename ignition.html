@@ -412,6 +412,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-left" style="width:120px;" onclick="ignSort('tidm')">TIDM</th>
         <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
         <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
+        <th class="th" style="width:44px;" title="Position change since last push">Δ</th>
         <th class="th" style="width:58px;" onclick="ignSort('yr_end')">Yr End</th>
         <th class="th" style="width:30px;" onclick="ignSort('qtr')">Q</th>
         <th class="th" style="width:40px;">New Hi</th>
@@ -427,7 +428,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       </tr>
     </thead>
     <tbody id="ign-body">
-      <tr><td colspan="16" style="padding:0;">
+      <tr><td colspan="17" style="padding:0;">
         <div id="empty-state">
           <div id="empty-icon">⚡</div>
           <div id="empty-title">Ready to Ignite</div>
@@ -525,6 +526,23 @@ var ignExCache   = null;
 var ignSelRow    = null;
 var exState      = {rows1:null,rows2:null,rows3:null,rows4:null};
 var liveData     = {};
+var ignPrevSnapshot = null; /* {date, positions:{tidm->position}} from last push */
+
+// ── Fetch previous rankings snapshot ──
+function ignFetchPrevSnapshot(){
+  var token=localStorage.getItem(IGN_GH_TOKEN)||'';
+  var repo=localStorage.getItem(IGN_GH_REPO)||'';
+  if(!token||!repo) return;
+  var url='https://api.github.com/repos/'+repo+'/contents/data/rankings.json';
+  fetch(url,{headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'}})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){
+      if(!d||!d.content) return;
+      var json=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,'')))));
+      ignPrevSnapshot=json;
+    })
+    .catch(function(){});
+}
 
 // ── Init ──
 (function init(){
@@ -533,6 +551,7 @@ var liveData     = {};
   loadCachedF5();
   loadCachesFromStorage();
   if(localStorage.getItem(IGN_GH_TOKEN)) fetchFromGitHub();
+  ignFetchPrevSnapshot();
 })();
 
 // ── URL Grid ──
@@ -995,6 +1014,24 @@ function pushToGitHub(){
       var lpshEl=document.getElementById('last-pushed');
       if(lpshEl){var pnow=new Date();lpshEl.textContent='⬆ Pushed '+pnow.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+pnow.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});lpshEl.style.display='';}
       showToast('✓ Saved to GitHub · '+label,'ok');
+      /* Save rankings snapshot */
+      var passed=ignData.filter(function(c){return !c._hardFail;}).slice().sort(function(a,b){return b.rank-a.rank;});
+      var positions={};
+      for(var pi=0;pi<passed.length;pi++) positions[passed[pi].tidm]=pi+1;
+      var snap={date:now.toISOString(),dateLabel:label,positions:positions};
+      var snapStr=JSON.stringify(snap);
+      var snapB64;
+      try{snapB64=btoa(unescape(encodeURIComponent(snapStr)));}catch(e){return;}
+      var rankUrl='https://api.github.com/repos/'+repo+'/contents/data/rankings.json';
+      fetch(rankUrl,{headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'}})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(ex){
+          var rbody={message:'Rankings snapshot '+label,content:snapB64};
+          if(ex&&ex.sha) rbody.sha=ex.sha;
+          return fetch(rankUrl,{method:'PUT',headers:headers,body:JSON.stringify(rbody)});
+        })
+        .then(function(){ignPrevSnapshot=snap;})
+        .catch(function(){});
     })
     .catch(function(e){
       if(btn){btn.textContent='⬆ Push to GitHub';btn.disabled=false;}
@@ -1180,7 +1217,7 @@ function ignTickerSearch(val){
   }
   /* Render search results */
   if(!found.length){
-    tbody.innerHTML='<tr><td colspan="16" style="padding:20px;text-align:center;color:var(--text-dim);font-size:11px;">No ticker or name matches "'+q+'"</td></tr>';
+    tbody.innerHTML='<tr><td colspan="17" style="padding:20px;text-align:center;color:var(--text-dim);font-size:11px;">No ticker or name matches "'+q+'"</td></tr>';
     return;
   }
   var html='';
@@ -1260,7 +1297,7 @@ function ignRun(){
   var BASE_WEIGHTS={eg:wEg,rg:wRg,ea:0.08*wScale,ra:0.05*wScale,bp:wBeat,bk:0.12*wScale,ha:0.10*wScale};
   window._ignWeights=BASE_WEIGHTS;
 
-  document.getElementById('ign-body').innerHTML='<tr><td colspan="16" style="padding:40px;text-align:center;color:var(--text-dim);font-family:var(--font-display);">Calculating scores…</td></tr>';
+  document.getElementById('ign-body').innerHTML='<tr><td colspan="17" style="padding:40px;text-align:center;color:var(--text-dim);font-family:var(--font-display);">Calculating scores…</td></tr>';
   ignSelRow=null;
 
   // Build row maps from cached DB if available
@@ -1542,7 +1579,7 @@ function ignRun(){
       ignUpdateSortLabel();
       ignRender();
     }catch(err){
-      document.getElementById('ign-body').innerHTML='<tr><td colspan="16" style="padding:30px;text-align:center;color:var(--red);">Error: '+err.message+'</td></tr>';
+      document.getElementById('ign-body').innerHTML='<tr><td colspan="17" style="padding:30px;text-align:center;color:var(--red);">Error: '+err.message+'</td></tr>';
       console.error(err);
     }
   },30);
@@ -1673,6 +1710,16 @@ function ignRender(){
       +'<td class="td-left">'+ignTidmCell(c)+'</td>'
       +'<td class="td-left" style="color:var(--text-secondary);max-width:145px;overflow:hidden;text-overflow:ellipsis;" title="'+c.name+'">'+c.name+'</td>'
       +'<td class="td-left td-dim" style="font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;" title="'+c.sector+'">'+c.sector+'</td>'
+      +'<td style="font-size:10px;text-align:center;white-space:nowrap;">'+(function(){
+        if(isTrail) return '';
+        if(!ignPrevSnapshot||!ignPrevSnapshot.positions) return '<span style="color:var(--blue);font-size:9px;font-weight:700;">NEW</span>';
+        var prev=ignPrevSnapshot.positions[c.tidm];
+        if(prev===undefined) return '<span style="color:var(--blue);font-size:9px;font-weight:700;">NEW</span>';
+        var delta=prev-(idx+1);
+        if(delta===0) return '<span style="color:var(--text-dim);">—</span>';
+        if(delta>0) return '<span style="color:var(--green);">▲'+delta+'</span>';
+        return '<span style="color:var(--red);">▼'+Math.abs(delta)+'</span>';
+      })()+'</td>'
       +'<td>'+ignYrEnd(c.yr_end)+'</td>'
       +'<td>'+ignQtrCell(c.qtr)+'</td>'
       +'<td>'+ignNh(c)+'</td>'
@@ -1691,14 +1738,14 @@ function ignRender(){
   var html='';
   for(var i=0;i<sorted.length;i++) html+=buildRow(sorted[i],i,false,false);
   if(tSorted.length){
-    html+='<tr class="tr-sep"><td colspan="16">† Trailing Track — '+tSorted.length+' stocks · no forecasts · EPS CAGR ≥15%</td></tr>';
+    html+='<tr class="tr-sep"><td colspan="17">† Trailing Track — '+tSorted.length+' stocks · no forecasts · EPS CAGR ≥15%</td></tr>';
     for(var ti=0;ti<tSorted.length;ti++) html+=buildRow(tSorted[ti],ti,true,false);
   }
   if(!applyHardFilter&&failedSorted.length){
-    html+='<tr class="tr-sep"><td colspan="16">⚠ Excluded by hard filter — '+failedSorted.length+' stocks · scored but not ranked</td></tr>';
+    html+='<tr class="tr-sep"><td colspan="17">⚠ Excluded by hard filter — '+failedSorted.length+' stocks · scored but not ranked</td></tr>';
     for(var fi=0;fi<failedSorted.length;fi++) html+=buildRow(failedSorted[fi],fi,false,true);
   }
-  document.getElementById('ign-body').innerHTML=html||'<tr><td colspan="16" style="padding:30px;text-align:center;color:var(--text-dim);">No stocks passed the filters</td></tr>';
+  document.getElementById('ign-body').innerHTML=html||'<tr><td colspan="17" style="padding:30px;text-align:center;color:var(--text-dim);">No stocks passed the filters</td></tr>';
   /* Update badge */
   var badge=document.getElementById('count-badge');
   if(badge){
