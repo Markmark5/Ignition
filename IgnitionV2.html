@@ -325,7 +325,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-left" style="width:120px;"  onclick="ignSort('tidm')">TIDM</th>
         <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
         <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
-        <th class="th"         style="width:52px;font-size:8px;">Tech</th>
+        <th class="th"         style="width:52px;font-size:8px;cursor:pointer;" onclick="ignSort('tech')" title="Sort by swing depth: ≤100ma first → ≤21ma, click again to reverse, again to reset">Tech</th>
         <th class="th"         style="width:58px;"   onclick="ignSort('yr_end')">Yr End</th>
         <th class="th"         style="width:30px;"   onclick="ignSort('qtr')">Q</th>
         <th class="th"         style="width:40px;">New Hi</th>
@@ -336,7 +336,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-blue" style="width:46px;" title="100d MA">MT</th>
         <th class="th th-blue" style="width:46px;" title="50d MA">ST</th>
         <th class="th th-blue" style="width:44px;" onclick="ignSort('rsi')">RSI</th>
-        <th class="th"         style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('broker_mom')">Broker Mom</th>
+        <th class="th"         style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('brokerMom')">Broker Mom</th>
         <th class="th"         style="width:68px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
         <th class="th"         style="width:54px;" onclick="ignSort('shares')">Shares</th>
         <th class="th" id="th-index" style="width:50px;cursor:pointer;" onclick="cycleIdxFilter()" title="Click to filter by index">Index</th>
@@ -1729,8 +1729,15 @@ function ignRender(filterQ){
   var tbody = document.getElementById('ign-body');
   var data  = ignData.slice();
 
+  function techSortVal(d){
+    if(!checkSwing(d)) return 0;
+    var s=swingDepth(d);
+    return s.indexOf('100')>=0?-3 : s.indexOf('50')>=0?-2 : -1;
+  }
   data.sort(function(a,b){
-    var av=a[ignSortKey], bv=b[ignSortKey];
+    var av,bv;
+    if(ignSortKey==='tech'){ av=techSortVal(a); bv=techSortVal(b); }
+    else { av=a[ignSortKey]; bv=b[ignSortKey]; }
     av=(av===undefined||av===null||av==='')?(ignSortAsc?Infinity:-Infinity):av;
     bv=(bv===undefined||bv===null||bv==='')?(ignSortAsc?Infinity:-Infinity):bv;
     return typeof av==='string'?(ignSortAsc?av.localeCompare(bv):bv.localeCompare(av)):(ignSortAsc?av-bv:bv-av);
