@@ -814,10 +814,16 @@ function parseWeeklySnapshotText(text){
     var tidmM = block.match(/^\nSHARESCOPE DATA BLOCK[\s\u2014\u2013\-]+([A-Z0-9.]+)\s*\n/);
     if(!tidmM) continue;
     var tidm = tidmM[1].trim();
-    var wsStart = block.indexOf('── WEEKLY SNAPSHOT');
+    /* The extractor wraps the title line in separators, so the ticker's DATA
+       lives in the NEXT chunk after the split. Check this chunk first
+       (legacy layout), then the following one. */
+    var body = block, wsStart = block.indexOf('── WEEKLY SNAPSHOT');
+    if(wsStart === -1 && bi+1 < blocks.length){
+      body = blocks[bi+1]; wsStart = body.indexOf('── WEEKLY SNAPSHOT');
+    }
     if(wsStart === -1) continue;
-    var wsEnd  = block.indexOf(SEP, wsStart);
-    var wsText = wsEnd === -1 ? block.substring(wsStart) : block.substring(wsStart, wsEnd);
+    var wsEnd  = body.indexOf(SEP, wsStart);
+    var wsText = wsEnd === -1 ? body.substring(wsStart) : body.substring(wsStart, wsEnd);
     var snap   = parseSnapshotBlock(wsText, tidm);
     if(snap){
       data[tidm] = snap;
@@ -847,19 +853,35 @@ function parseSnapshotBlock(wsText, tidm){
   if(revCol<0)   revCol   = 25;
   if(priceCol<0) priceCol = 36;
 
+  /* Detect the extractor format from the header:
+     NEW (Sept 26+): Date  EPS  2yEPS  Rev(m)  2yRev(m)  Target  Close
+     OLD:            Date  EPS  Rev(m)  Price
+     Reading the wrong one positionally would silently swap 2yEPS into Rev. */
+  var newFmt = /2y\s*EPS/i.test(wsText);
   function parseRow(line){
-    var clean = line.replace(/\s*◄.*$/, '').replace(/[£p]/g,'');
-    if(clean.length < 8) return null;
-    var dateM = clean.match(/^\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{2})\s/);
+    var noTag = line.replace(/\s*◄.*$/, '');
+    if(noTag.length < 8) return null;
+    /* Read the date BEFORE stripping £/p — otherwise "Sept" becomes "Set" */
+    var dateM = noTag.match(/^\s*(\d{1,2}\s+[A-Za-z]{3,4}\s+\d{2})\s/);
     if(!dateM) return null;
+    var clean = noTag.replace(/[£p]/g,'');
+    dateM = clean.match(/^\s*(\S.*?\d{2})\s/) && dateM; /* keep original date text */
+    var dateStr = noTag.match(/^\s*(\d{1,2}\s+[A-Za-z]{3,4}\s+\d{2})/)[1];
     function pf(s){ var n=parseFloat((s||'').trim()); return isNaN(n)?null:n; }
-    // Always use whitespace splitting after the date — more reliable than fixed columns
-    // Fixed-column positions vary slightly between ShareScope export versions
-    var rest  = clean.slice(dateM[0].length).trim().split(/\s+/);
-    var eps   = rest.length>0 ? pf(rest[0]) : null;
-    var rev   = rest.length>1 ? pf(rest[1]) : null;
-    var price = rest.length>2 ? pf(rest[2]) : null;
-    return { date:dateM[1].trim(), eps:eps, rev:rev, price:price };
+    var rest  = clean.replace(/^\s*\d{1,2}\s+[A-Za-z]{3,4}\s+\d{2}\s*/,'').trim().split(/\s+/);
+    if(newFmt){
+      return { date:dateStr.trim(),
+               eps:  rest.length>0 ? pf(rest[0]) : null,
+               eps2: rest.length>1 ? pf(rest[1]) : null,
+               rev:  rest.length>2 ? pf(rest[2]) : null,
+               rev2: rest.length>3 ? pf(rest[3]) : null,
+               price:rest.length>4 ? pf(rest[4]) : null,   /* Target — same meaning as old Price col */
+               close:rest.length>5 ? pf(rest[5]) : null };
+    }
+    return { date:dateStr.trim(),
+             eps:   rest.length>0 ? pf(rest[0]) : null,
+             rev:   rest.length>1 ? pf(rest[1]) : null,
+             price: rest.length>2 ? pf(rest[2]) : null };
   }
 
   for(var j = 0; j < lines.length; j++){
@@ -1635,8 +1657,11 @@ function parseCsvIndexed(text, group){
 // SORT
 // ═══════════════════════════════════════════════════════════
 function ignSort(key){
-  ignSortAsc = (ignSortKey===key) ? !ignSortAsc : false;
-  ignSortKey = key;
+  /* 3-state cycle per column: 1st click lowest-first, 2nd highest-first,
+     3rd back to the default rank order */
+  if(ignSortKey!==key){ ignSortKey=key; ignSortAsc=true; }
+  else if(ignSortAsc){ ignSortAsc=false; }
+  else { ignSortKey='rank'; ignSortAsc=false; }
   ignRender();
 }
 function cycleIdxFilter(){
@@ -1738,15 +1763,17 @@ function ignRender(filterQ){
       if(daysSince===null||high1td===null||price===null||ma21===null) return false;
       return daysSince<=1 && price>high1td && price<=ma21;
     });
-    // Sort: daysSince=0 (green — intraday) first, then 1 (blue — confirmed close)
-    // Each group subsorted by rank descending
-    data.sort(function(a,b2){
-      var dA = col(liveData[a.tidm]&&liveData[a.tidm].d,'Z');
-      var dB = col(liveData[b2.tidm]&&liveData[b2.tidm].d,'Z');
-      dA = dA===null?1:dA; dB = dB===null?1:dB;
-      if(dA !== dB) return dA - dB; // 0 before 1
-      return b2.rank - a.rank;
-    });
+    // Default swing ordering (intraday first, then rank) — but ONLY when the
+    // user hasn't clicked a column header; a chosen sort must survive this mode.
+    if(ignSortKey==='rank' && !ignSortAsc){
+      data.sort(function(a,b2){
+        var dA = col(liveData[a.tidm]&&liveData[a.tidm].d,'Z');
+        var dB = col(liveData[b2.tidm]&&liveData[b2.tidm].d,'Z');
+        dA = dA===null?1:dA; dB = dB===null?1:dB;
+        if(dA !== dB) return dA - dB; // 0 before 1
+        return b2.rank - a.rank;
+      });
+    }
     data = data.map(function(d){
       var ds = col(liveData[d.tidm]&&liveData[d.tidm].d,'Z');
       return Object.assign({}, d, { _swingDays: ds===null?1:ds });
@@ -1850,7 +1877,7 @@ function ignRender(filterQ){
         var signals = [];
         if(checkSwing(d)){
           var sd=swingDepth(d);
-          signals.push('<span style="color:var(--green);display:block;">SWING'+(sd?' <span style="color:var(--amber);font-weight:600;">'+sd+'</span>':'')+'</span>');
+          signals.push('<span style="color:var(--green);display:block;">SWING'+(sd?'&nbsp;<span style="color:var(--amber);font-weight:600;">'+sd+'</span>':'')+'</span>');
         }
         if(checkNewHigh(d)) signals.push('<span style="color:var(--blue);display:block;">NEW HIGH</span>');
         return '<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;line-height:1.4;">'+signals.join('')+'</td>';
