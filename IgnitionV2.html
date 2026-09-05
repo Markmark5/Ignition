@@ -1877,7 +1877,7 @@ function ignRender(filterQ){
         var signals = [];
         if(checkSwing(d)){
           var sd=swingDepth(d);
-          signals.push('<span style="color:var(--green);display:block;">SWING'+(sd?'&nbsp;<span style="color:var(--amber);font-weight:600;">'+sd+'</span>':'')+'</span>');
+          signals.push('<span style="color:var(--green);display:block;">SWING'+(sd?'&nbsp;<span style="color:var(--amber);font-weight:600;margin-left:5px;">'+sd+'</span>':'')+'</span>');
         }
         if(checkNewHigh(d)) signals.push('<span style="color:var(--blue);display:block;">NEW HIGH</span>');
         return '<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;line-height:1.4;">'+signals.join('')+'</td>';
