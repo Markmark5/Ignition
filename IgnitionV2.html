@@ -18,8 +18,8 @@
   --border:        #2a2a38;
   --border-bright: #3a3a50;
   --text-primary:  #f2f2f8;
-  --text-secondary:#9a9ab5;
-  --text-dim:      #6a6a85;
+  --text-secondary:#b2b2cc;   /* one shade up */
+  --text-dim:      #8585a2;   /* one shade up */
   --amber:         #ffc400;
   --amber-dim:     #ffc40018;
   --amber-mid:     #ffc40044;
@@ -1677,6 +1677,19 @@ function checkSwing(d){
   if(daysSince===null||high1td===null||price===null||ma21===null) return false;
   return daysSince<=1 && price>high1td && price<=ma21;
 }
+/* When SWING fires, name the DEEPEST moving average the price sits at/below.
+   SWING itself guarantees price is at/below the 21d MA; deeper pullbacks
+   flag the 50d or 100d instead. */
+function swingDepth(d){
+  var grp=liveData[d.tidm]; if(!grp||!grp.d) return '';
+  var dp=grp.d;
+  var price=col(dp,'C')||col(dp,'B');
+  var ma50=col(dp,'R'), ma100=col(dp,'S');
+  if(price===null) return '';
+  if(ma100!==null&&price<=ma100) return '\u2264100ma';
+  if(ma50!==null&&price<=ma50)  return '\u226450ma';
+  return '\u226421ma';
+}
 
 function selectRow(el){
   // Clear any previously selected row
@@ -1835,7 +1848,10 @@ function ignRender(filterQ){
       +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
       +(function(){
         var signals = [];
-        if(checkSwing(d)) signals.push('<span style="color:var(--green);display:block;">SWING</span>');
+        if(checkSwing(d)){
+          var sd=swingDepth(d);
+          signals.push('<span style="color:var(--green);display:block;">SWING'+(sd?' <span style="color:var(--amber);font-weight:600;">'+sd+'</span>':'')+'</span>');
+        }
         if(checkNewHigh(d)) signals.push('<span style="color:var(--blue);display:block;">NEW HIGH</span>');
         return '<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;line-height:1.4;">'+signals.join('')+'</td>';
       })()
