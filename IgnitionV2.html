@@ -10,30 +10,31 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:            #0a0e17;
-  --surface:       #111827;
-  --surface2:      #1a2235;
-  --surface3:      #212d42;
-  --border:        rgba(255,255,255,0.08);
-  --border-bright: rgba(255,255,255,0.18);
-  --text-primary:  #f0f4ff;
-  --text-secondary:#b8c4e0;
-  --text-dim:      #6b7a99;
-  --amber:         #f59e0b;
-  --amber-dim:     rgba(245,158,11,0.12);
-  --amber-mid:     rgba(245,158,11,0.35);
-  --green:         #10b981;
-  --green-dim:     rgba(16,185,129,0.12);
-  --red:           #ef4444;
-  --red-dim:       rgba(239,68,68,0.12);
-  --blue:          #60a5fa;
-  --blue-dim:      rgba(96,165,250,0.12);
+  /* Palette matched to Database_v2 */
+  --bg:            #000000;
+  --surface:       #0a0a0a;
+  --surface2:      #111111;
+  --surface3:      #1a1a1a;
+  --border:        #2a2a38;
+  --border-bright: #3a3a50;
+  --text-primary:  #f2f2f8;
+  --text-secondary:#9a9ab5;
+  --text-dim:      #6a6a85;
+  --amber:         #ffc400;
+  --amber-dim:     #ffc40018;
+  --amber-mid:     #ffc40044;
+  --green:         #00c814;
+  --green-dim:     #00c81418;
+  --red:           #e02525;
+  --red-dim:       #e0252518;
+  --blue:          #4a9eff;
+  --blue-dim:      #4a9eff18;
   --teal:          #2dd4bf;
   --font-display:  'Syne', sans-serif;
   --font-mono:     'Geist', sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text-primary);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
+body{background:var(--bg);background-image:radial-gradient(ellipse at 20% 0%,#1a1a2e 0%,transparent 55%),radial-gradient(ellipse at 80% 100%,#0d1a2e 0%,transparent 55%);color:var(--text-primary);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");opacity:.4;}
 
 /* Hero */
@@ -645,7 +646,7 @@ function refreshSingleUrl(idx){
 
   setUrlIcon(idx, '⏳', 'var(--amber)');
 
-  var cbVal   = (groupLetter === 'd') ? Date.now() : Math.floor(Date.now() / 300000);
+  var cbVal   = Date.now();  /* gviz is live — per-load bust for all groups */
   var bustUrl = url + (url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cbVal;
 
   fetch(bustUrl, { cache: 'no-store' })
@@ -689,10 +690,9 @@ function refreshData(){
     var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
     // ── capture both entry and groupLetter in an IIFE to avoid closure bug ──
     (function(capturedEntry, capturedGroup){
-      // Group D (price/volume/trend) gets per-load cache bust for freshest prices
-      // Groups A/B/C (fundamentals) use 5-min bucket — they change less frequently
-      var isGroupD = (capturedGroup === 'd');
-      var cbVal   = isGroupD ? Date.now() : Math.floor(Date.now() / 300000);
+      // gviz reads the live sheet, so every group gets a per-load cache-buster.
+      // (The old 5-min bucket for A/B/C was a publish-cache workaround — no longer needed.)
+      var cbVal = Date.now();
       var bustUrl = capturedEntry.url + (capturedEntry.url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cbVal;
       fetch(bustUrl, { cache: 'no-store' })
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
@@ -1204,7 +1204,9 @@ function updateGhLastPushInfo(){
 // ═══════════════════════════════════════════════════════════
 function getRankDelta(tidm, pos){
   if(!Object.keys(prevRanks).length) return null;
-  if(prevRanksDate === new Date().toISOString().slice(0,10)) return null; // same day
+  /* baseline is auto-promoted from a previous day, so same-day guard only
+     applies if the baseline itself is from today (fresh install, first day) */
+  if(prevRanksDate === new Date().toISOString().slice(0,10)) return null;
   var prev = prevRanks[tidm];
   if(prev === undefined) return { isNew:true };
   return { delta: prev - pos };
@@ -1573,7 +1575,43 @@ function ignRun(){
 
   ignData = cands;
   ignData.sort(function(a,b){ return b.rank-a.rank; });
+  autoRankSnapshot();
   ignRender();
+}
+
+/* ── AUTOMATIC DAILY RANK SNAPSHOT ──
+   Runs after every scoring pass. Keeps two slots in localStorage:
+   today's ranks (updated on every run) and the previous day's (promoted
+   automatically the first time Ignition runs on a new day). Delta arrows
+   therefore always compare against the last day you ran it — no manual
+   push needed. If a GitHub token+repo are configured, the day's first run
+   also pushes the snapshot silently so other devices pick it up. */
+var K_RANK_DAYS='ignitev2_rank_days';
+function autoRankSnapshot(){
+  try{
+    if(!ignData.length) return;
+    var today=new Date().toISOString().slice(0,10);
+    var ranks={};
+    ignData.slice().sort(function(a,b){return b.rank-a.rank;})
+      .forEach(function(d,i){ ranks[d.tidm]=i+1; });
+    var store={};
+    try{ store=JSON.parse(ls(K_RANK_DAYS))||{}; }catch(e){}
+    var rolled=false;
+    if(store.date && store.date!==today){
+      /* first run of a new day: yesterday's final ranks become the baseline */
+      store.prevDate=store.date; store.prevRanks=store.ranks; rolled=true;
+    }
+    store.date=today; store.ranks=ranks;
+    lsSet(K_RANK_DAYS, JSON.stringify(store));
+    if(store.prevRanks){
+      prevRanks=store.prevRanks; prevRanksDate=store.prevDate||'';
+    }
+    /* silent GitHub push once per day so other devices share the baseline */
+    if(rolled){
+      var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO);
+      if(token&&repo){ try{ ghPushRankSnapshot(); }catch(e){} }
+    }
+  }catch(e){ console.warn('autoRankSnapshot:', e.message); }
 }
 
 function pf(v){ var n=parseFloat(String(v||'').replace(/[,£p]/g,'')); return isNaN(n)?null:n; }
