@@ -305,6 +305,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;outline:none;cursor:pointer;">
       <option value="">— Signals —</option>
       <option value="swing_day">📈 Swing Day</option>
+      <option value="vol_surge">🔊 Volume Surge</option>
       <option value="new_high">🔵 New High</option>
       <option value="minervini">⚡ Minervini</option>
     </select>
@@ -1758,6 +1759,31 @@ function ignRender(filterQ){
   // Signal filter
   var signalSel = document.getElementById('signal-filter');
   var signal    = signalSel ? signalSel.value : '';
+  if(signal === 'vol_surge'){
+    /* Volume on pace for ≥200% of 20-day average by the close.
+       Threshold slides with the LSE session (08:00–16:30 = 510 min):
+       e.g. 10:00 → 23.5% elapsed → trigger at 47% of average.
+       Floor of 20% stops the opening minutes triggering on noise;
+       after the close (or weekends) the full 200% end-of-day bar applies. */
+    var vNow=new Date();
+    var vMins=vNow.getHours()*60+vNow.getMinutes();
+    var vFrac=(vMins-480)/510;                 /* 480 = 08:00 */
+    if(vNow.getDay()===0||vNow.getDay()===6) vFrac=1;
+    vFrac=Math.max(0.1,Math.min(1,vFrac));
+    var vThresh=200*vFrac;
+    data = data.filter(function(d){
+      var grp=liveData[d.tidm];
+      if(!grp||!grp.d) return false;
+      var v=col(grp.d,'F');                    /* D·F = Volume today % of avg */
+      if(v===null) return false;
+      d._volPct=v; d._volThresh=vThresh;
+      return v>=vThresh;
+    });
+    /* Default ordering: most extreme volume first — unless a column sort is active */
+    if(ignSortKey==='rank' && !ignSortAsc){
+      data.sort(function(a,b2){ return (b2._volPct||0)-(a._volPct||0); });
+    }
+  }
   if(signal === 'swing_day'){
     data = data.filter(function(d){
       var grp = liveData[d.tidm];
