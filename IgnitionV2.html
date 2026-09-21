@@ -1892,7 +1892,7 @@ function ignRender(filterQ){
     else if(d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">E</span>';
     else nhStr = '<span style="color:var(--text-dim);">—</span>';
     // TIDM — amber, bold, 13px matching V1, with flag slots
-    var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;">'
+    var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,196,0,0.25);text-underline-offset:3px;" title="Show RNS scorecards" onclick="event.stopPropagation();ignShowRNS(\''+d.tidm+'\')">'
       +escHtml(d.tidm)+'</span>'
       +(d.acqnFlag?' <span style="color:var(--red);font-size:10px;">⚑</span>':'');
     function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
@@ -1959,6 +1959,84 @@ function flagRow(lbl, triggered, status, noBorder){
     +'</div>';
 }
 
+/* ── RNS SCORECARDS POPUP ─────────────────────────────────────────
+   Click a ticker → all Database RNS scorecards for it.
+   Source 1: postMessage to the parent Database page (live ALL array)
+   Source 2: database.json from GitHub (standalone-tab fallback)      */
+var _rnsCache={}, _rnsDbJson=null, _rnsPending=null;
+window.addEventListener('message',function(ev){
+  var d=ev.data||{};
+  if(d.type==='rns_response'&&_rnsPending&&d.ticker===_rnsPending.ticker){
+    clearTimeout(_rnsPending.timer);
+    _rnsCache[d.ticker]=d.cards||[];
+    _rnsRender(d.ticker,_rnsCache[d.ticker]);
+    _rnsPending=null;
+  }
+});
+function ignShowRNS(tidm){
+  tidm=String(tidm||'').toUpperCase();
+  _rnsShell(tidm,'<div style="padding:30px;text-align:center;color:var(--text-dim);">Loading scorecards…</div>');
+  if(_rnsCache[tidm]){ _rnsRender(tidm,_rnsCache[tidm]); return; }
+  var inFrame=false; try{ inFrame=(window.parent&&window.parent!==window); }catch(e){}
+  if(inFrame){
+    _rnsPending={ticker:tidm,timer:setTimeout(function(){_rnsPending=null;_rnsFetchJson(tidm);},1200)};
+    try{ window.parent.postMessage({type:'rns_request',ticker:tidm},'*'); }
+    catch(e){ clearTimeout(_rnsPending.timer); _rnsPending=null; _rnsFetchJson(tidm); }
+  } else { _rnsFetchJson(tidm); }
+}
+function _rnsFetchJson(tidm){
+  if(_rnsDbJson){ var c=_rnsDbJson.filter(function(r){return String(r.ticker||'').toUpperCase()===tidm;}); _rnsCache[tidm]=c; _rnsRender(tidm,c); return; }
+  fetch('https://raw.githubusercontent.com/Markmark5/Database/main/database.json?cb='+Math.floor(Date.now()/600000))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ _rnsDbJson=j.scorecards||[]; _rnsFetchJson(tidm); })
+    .catch(function(e){ _rnsShell(tidm,'<div style="padding:30px;text-align:center;color:var(--red);">Could not load scorecards<br><span style="font-size:10px;color:var(--text-dim);">'+e.message+'</span></div>'); });
+}
+function _rnsShell(tidm,inner){
+  var ov=document.getElementById('rns-pop-ov');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='rns-pop-ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:30px;';
+    ov.onclick=function(ev){ if(ev.target===ov) ov.style.display='none'; };
+    document.body.appendChild(ov);
+    document.addEventListener('keydown',function(ev){ if(ev.key==='Escape') ov.style.display='none'; });
+  }
+  ov.style.display='flex';
+  ov.innerHTML='<div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:8px;width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;" onclick="event.stopPropagation()">'
+    +'<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">'
+    +'<span style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--amber);">'+tidm+'</span>'
+    +'<span id="rns-pop-sub" style="font-size:11px;color:var(--text-secondary);"></span>'
+    +'<button onclick="document.getElementById(\'rns-pop-ov\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;color:var(--text-secondary);font-size:16px;cursor:pointer;">✕</button>'
+    +'</div><div id="rns-pop-body" style="overflow-y:auto;padding:10px 14px;">'+inner+'</div></div>';
+}
+function _rnsBand(s){ return s>=75?'var(--green)':s>=50?'var(--amber)':'var(--red)'; }
+function _rnsRender(tidm,cards){
+  _rnsShell(tidm,'');
+  var sub=document.getElementById('rns-pop-sub'), body=document.getElementById('rns-pop-body');
+  if(!cards||!cards.length){
+    if(sub) sub.textContent='no scorecards';
+    body.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-dim);">No RNS scorecards for '+tidm+' in the Database.</div>'; return;
+  }
+  var sorted=cards.slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+  if(sub) sub.textContent=(sorted[0].company||'')+' · '+sorted.length+' scorecard'+(sorted.length>1?'s':'');
+  body.innerHTML=sorted.map(function(c){
+    var col=_rnsBand(+c.score||0);
+    var sigs=(c.signals||[]).map(function(s){
+      var t=s.type==='red'?'var(--red)':s.type==='green'?'var(--green)':s.type==='amber'?'var(--amber)':'var(--blue)';
+      return '<div style="display:flex;gap:8px;margin:5px 0;align-items:flex-start;">'
+        +'<span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border:1px solid '+t+';border-radius:3px;color:'+t+';white-space:nowrap;">'+escHtml(s.pill||'')+'</span>'
+        +'<span style="font-size:11px;color:var(--text-secondary);line-height:1.45;">'+escHtml(s.textPlain||'')+'</span></div>';
+    }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:6px;margin:8px 0;overflow:hidden;">'
+      +'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);">'
+      +'<span style="font-family:var(--font-mono);font-weight:700;font-size:20px;color:'+col+';">'+(c.score!==undefined?c.score:'—')+'</span>'
+      +'<span style="font-size:9px;color:var(--text-dim);">/100</span>'
+      +'<div style="display:flex;flex-direction:column;">'
+      +'<span style="font-size:11px;color:var(--text-primary);font-weight:600;">'+escHtml(c.verdict||'')+'</span>'
+      +'<span style="font-size:9px;color:var(--text-dim);">'+escHtml(c.date||'')+' · '+escHtml(c.rnsType||'')+(c.mode?' · '+escHtml(c.mode):'')+(c.index?' · '+escHtml(c.index):'')+'</span>'
+      +'</div></div>'
+      +'<div style="padding:6px 12px;">'+(sigs||'<span style="font-size:10px;color:var(--text-dim);">No signals stored</span>')+'</div></div>';
+  }).join('');
+}
 function ignOpenPopup(tidm){
   var d = ignData.filter(function(x){ return x.tidm===tidm; })[0];
   if(!d) return;
