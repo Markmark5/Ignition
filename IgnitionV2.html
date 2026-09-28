@@ -1980,16 +1980,37 @@ function ignShowRNS(tidm){
   if(_rnsCache[tidm]){ _rnsRender(tidm,_rnsCache[tidm]); return; }
   var inFrame=false; try{ inFrame=(window.parent&&window.parent!==window); }catch(e){}
   if(inFrame){
-    _rnsPending={ticker:tidm,timer:setTimeout(function(){_rnsPending=null;_rnsFetchJson(tidm);},1200)};
+    _rnsPending={ticker:tidm,timer:setTimeout(function(){_rnsPending=null;_rnsFetchJson(tidm);},10000)};
     try{ window.parent.postMessage({type:'rns_request',ticker:tidm},'*'); }
     catch(e){ clearTimeout(_rnsPending.timer); _rnsPending=null; _rnsFetchJson(tidm); }
   } else { _rnsFetchJson(tidm); }
 }
-function _rnsFetchJson(tidm){
-  if(_rnsDbJson){ var c=_rnsDbJson.filter(function(r){return String(r.ticker||'').toUpperCase()===tidm;}); _rnsCache[tidm]=c; _rnsRender(tidm,c); return; }
-  fetch('https://raw.githubusercontent.com/Markmark5/Database/main/database.json?cb='+Math.floor(Date.now()/600000))
+var IGN_DB_BASE='https://raw.githubusercontent.com/Markmark5/Database/main/';
+var _rnsArcCache={};
+function _rnsArc(name){
+  if(!_rnsArcCache[name]) _rnsArcCache[name]=fetch(IGN_DB_BASE+'archive/scorecards_'+name+'.json?cb='+Math.floor(Date.now()/600000))
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(function(j){ _rnsDbJson=j.scorecards||[]; _rnsFetchJson(tidm); })
+    .then(function(j){ var m={}; (j.scorecards||[]).forEach(function(c){ if(c&&c.id) m[c.id]=c; }); return m; })
+    .catch(function(){ delete _rnsArcCache[name]; return {}; });
+  return _rnsArcCache[name];
+}
+function _rnsFetchJson(tidm){
+  var isT=function(r){ return r&&String(r.ticker||'').toUpperCase()===tidm; };
+  if(_rnsDbJson){
+    var live=(_rnsDbJson.scorecards||[]).filter(isT);
+    var old=(_rnsDbJson.scorecardIndex||[]).filter(function(e){ return isT(e)&&e.arc; });
+    var names=old.map(function(e){return e.arc;}).filter(function(n,i,a){return a.indexOf(n)===i;});
+    Promise.all(names.map(_rnsArc)).then(function(maps){
+      var seen={}; live.forEach(function(c){ seen[c.id]=1; });
+      var all=live.slice(), m={}; maps.forEach(function(x){ Object.keys(x).forEach(function(k){ m[k]=x[k]; }); });
+      old.forEach(function(e){ if(!seen[e.id]&&m[e.id]){ all.push(m[e.id]); seen[e.id]=1; } });
+      _rnsCache[tidm]=all; _rnsRender(tidm,all);
+    });
+    return;
+  }
+  fetch(IGN_DB_BASE+'database.json?cb='+Math.floor(Date.now()/600000))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ _rnsDbJson=j; _rnsFetchJson(tidm); })
     .catch(function(e){ _rnsShell(tidm,'<div style="padding:30px;text-align:center;color:var(--red);">Could not load scorecards<br><span style="font-size:10px;color:var(--text-dim);">'+e.message+'</span></div>'); });
 }
 function _rnsShell(tidm,inner){
