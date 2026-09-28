@@ -257,7 +257,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     </div>
     <div>
       <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Repository (owner/repo)</div>
-      <input id="gh-repo" type="text" placeholder="username/my-ignition-data" value="markmark5/Ignition_v2"
+      <input id="gh-repo" type="text" placeholder="username/my-ignition-data" value="markmark5/Ignition"
         style="width:100%;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
         onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
     </div>
@@ -503,16 +503,23 @@ var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, -1];
   buildUrlList();
   loadSavedUrls();
   updateUrlCountBadge();
+  /* Repo migration: every browser uses the live repo, no key or manual pull needed */
+  (function(){ var r=(ls(K.GH_REPO)||'').trim().toLowerCase(); if(!r || r==='markmark5/ignition_v2') lsSet(K.GH_REPO,'markmark5/Ignition'); })();
   loadGitHubConfig();
   loadCachedWeeklySnapshot();
   updateWeightBadge();
-  var defaultRepo = 'markmark5/Ignition_v2';
+  var defaultRepo = 'markmark5/Ignition';
   if(!ls(K.GH_REPO)) lsSet(K.GH_REPO, defaultRepo); // pre-seed on first visit
   if(ls(K.GH_REPO)){
     ghFetchWeeklySnapshot(true);   // no token needed
     ghFetchRankSnapshot(true);     // no token needed
   }
 })();
+
+/* Snapshot dates ('25 Sept 26', '03 Mar 26') compared as real dates, not text */
+function wsDateVal(s){ var m=/(\d{1,2})\s+([A-Za-z]{3,4})\w*\s+(\d{2,4})/.exec(String(s||'')); if(!m) return 0;
+  var mo=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].slice(0,3).toLowerCase())+1;
+  var y=+m[3]; if(y<100) y+=2000; return y*10000+mo*100+(+m[1]); }
 
 // localStorage helpers
 function ls(k)    { return localStorage.getItem(k)||''; }
@@ -829,7 +836,7 @@ function parseWeeklySnapshotText(text){
     var snap   = parseSnapshotBlock(wsText, tidm);
     if(snap){
       data[tidm] = snap;
-      if(snap.latestDate > latestDate) latestDate = snap.latestDate;
+      if(wsDateVal(snap.latestDate) > wsDateVal(latestDate)) latestDate = snap.latestDate;
     }
   }
   return { data:data, latestDate:latestDate };
@@ -984,7 +991,7 @@ function loadGitHubConfig(){
     var el = document.getElementById(id); if(!el) continue;
     var saved = ls(map[id]);
     // gh-repo defaults to your repo if nothing saved yet
-    if(!saved && id==='gh-repo') saved = 'markmark5/Ignition_v2';
+    if(!saved && id==='gh-repo') saved = 'markmark5/Ignition';
     if(saved) el.value = saved;
   }
   loadPrevRanks();
