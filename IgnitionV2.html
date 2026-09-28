@@ -2042,6 +2042,14 @@ function _rnsRender(tidm,cards){
   if(sub) sub.textContent=(sorted[0].company||'')+' · '+sorted.length+' scorecard'+(sorted.length>1?'s':'');
   body.innerHTML=sorted.map(function(c){
     var col=_rnsBand(+c.score||0);
+    var revs=(c.revisions||[]).slice(0,4).map(function(v){
+      var cl=/^(var\(--[a-z0-9-]+\)|#[0-9a-f]{3,8})$/i.test(String(v.color||''))?v.color:'var(--text-primary)';
+      return '<div style="display:flex;flex-direction:column;min-width:92px;max-width:150px;">'
+        +'<span style="font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);">'+escHtml(v.lbl||'')+'</span>'
+        +'<span style="font-size:12px;font-weight:700;color:'+cl+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(v.val||'')+'</span>'
+        +'<span style="font-size:9px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+escHtml(v.sub||'')+'">'+escHtml(v.sub||'')+'</span></div>';
+    }).join('');
+    var revHtml=revs?'<div style="display:flex;gap:14px;margin-left:auto;padding-left:12px;">'+revs+'</div>':'';
     var sigs=(c.signals||[]).map(function(s){
       var t=s.type==='red'?'var(--red)':s.type==='green'?'var(--green)':s.type==='amber'?'var(--amber)':'var(--blue)';
       return '<div style="display:flex;gap:8px;margin:5px 0;align-items:flex-start;">'
@@ -2055,7 +2063,7 @@ function _rnsRender(tidm,cards){
       +'<div style="display:flex;flex-direction:column;">'
       +'<span style="font-size:11px;color:var(--text-primary);font-weight:600;">'+escHtml(c.verdict||'')+'</span>'
       +'<span style="font-size:9px;color:var(--text-dim);">'+escHtml(c.date||'')+' · '+escHtml(c.rnsType||'')+(c.mode?' · '+escHtml(c.mode):'')+(c.index?' · '+escHtml(c.index):'')+'</span>'
-      +'</div></div>'
+      +'</div>'+revHtml+'</div>'
       +'<div style="padding:6px 12px;">'+(sigs||'<span style="font-size:10px;color:var(--text-dim);">No signals stored</span>')+'</div></div>';
   }).join('');
 }
