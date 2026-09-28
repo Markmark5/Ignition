@@ -2023,7 +2023,7 @@ function _rnsShell(tidm,inner){
     document.addEventListener('keydown',function(ev){ if(ev.key==='Escape') ov.style.display='none'; });
   }
   ov.style.display='flex';
-  ov.innerHTML='<div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:8px;width:min(880px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;" onclick="event.stopPropagation()">'
+  ov.innerHTML='<div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:8px;width:min(1180px,96vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;" onclick="event.stopPropagation()">'
     +'<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">'
     +'<span style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--amber);">'+tidm+'</span>'
     +'<span id="rns-pop-sub" style="font-size:11px;color:var(--text-secondary);"></span>'
@@ -2052,9 +2052,9 @@ function _rnsRender(tidm,cards){
     var revHtml=revs?'<div style="display:flex;gap:14px;margin-left:auto;padding-left:12px;">'+revs+'</div>':'';
     var sigs=(c.signals||[]).map(function(s){
       var t=s.type==='red'?'var(--red)':s.type==='green'?'var(--green)':s.type==='amber'?'var(--amber)':'var(--blue)';
-      return '<div style="display:flex;gap:8px;margin:5px 0;align-items:flex-start;">'
+      return '<div style="display:flex;gap:8px;margin:5px 0;align-items:center;min-width:0;">'
         +'<span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border:1px solid '+t+';border-radius:3px;color:'+t+';white-space:nowrap;">'+escHtml(s.pill||'')+'</span>'
-        +'<span style="font-size:11px;color:var(--text-secondary);line-height:1.45;">'+escHtml(s.textPlain||'')+'</span></div>';
+        +'<span style="font-size:11px;color:var(--text-secondary);line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;" title="'+escHtml(s.textPlain||'')+'">'+escHtml(s.textPlain||'')+'</span></div>';
     }).join('');
     return '<div style="border:1px solid var(--border);border-radius:6px;margin:8px 0;overflow:hidden;">'
       +'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);">'
