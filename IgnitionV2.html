@@ -333,7 +333,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th"         style="width:40px;"   title="Position change vs prior day">Δ</th>
         <th class="th th-left" style="width:120px;"  onclick="ignSort('tidm')">TIDM</th>
         <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
-        <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
+        <th class="th th-left" id="th-sector" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
         <th class="th"         style="width:52px;font-size:8px;cursor:pointer;" onclick="ignSort('tech')" title="Sort by swing depth: ≤100ma first → ≤21ma, click again to reverse, again to reset">Tech</th>
         <th class="th"         style="width:58px;"   onclick="ignSort('yr_end')">Yr End</th>
         <th class="th"         style="width:30px;"   onclick="ignSort('qtr')">Q</th>
@@ -345,7 +345,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-blue" style="width:46px;" title="100d MA">MT</th>
         <th class="th th-blue" style="width:46px;" title="50d MA">ST</th>
         <th class="th th-blue" style="width:44px;" onclick="ignSort('rsi')">RSI</th>
-        <th class="th"         style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('brokerMom')">Broker Mom</th>
+        <th class="th"         id="th-brkmom" style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('brokerMom')">Broker Mom</th>
         <th class="th"         style="width:68px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
         <th class="th"         style="width:54px;" onclick="ignSort('shares')">Shares</th>
         <th class="th" id="th-index" style="width:50px;cursor:pointer;" onclick="cycleIdxFilter()" title="Click to filter by index">Index</th>
@@ -536,6 +536,18 @@ var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, 4,4,4,4,4,
 function wsDateVal(s){ var m=/(\d{1,2})\s+([A-Za-z]{3,4})\w*\s+(\d{2,4})/.exec(String(s||'')); if(!m) return 0;
   var mo=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].slice(0,3).toLowerCase())+1;
   var y=+m[3]; if(y<100) y+=2000; return y*10000+mo*100+(+m[1]); }
+
+/* Broker-revision grid helpers (Group E) */
+function brkFmt(v,bold){ if(v===null||v===undefined||isNaN(v)) return '<span style="color:var(--text-dim);">—</span>';
+  var c=v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)';
+  return '<span style="color:'+c+';'+(bold?'font-weight:700;':'')+'">'+(v>0?'+':'')+v.toFixed(1)+'%</span>'; }
+function brkGrid(e,pr,EC){
+  var h='<div style="display:flex;justify-content:flex-start;font-size:10.5px;line-height:1.3;">';
+  ['EPS','REV','PBT','EBITDA'].forEach(function(m){
+    var v1=col(e,EC[m][pr[0]]), v2=col(e,EC[m][pr[1]]);
+    h+='<span style="width:66px;text-align:right;display:inline-block;">'+brkFmt(v1,true)+'<br><span style="opacity:.55;font-size:9.5px;">'+brkFmt(v2,false)+'</span></span>'; });
+  var n=col(e,'N'); h+='<span style="width:66px;text-align:right;display:inline-block;color:var(--text-secondary);align-self:center;">'+(n===null?'—':Math.round(n))+'</span>';
+  return h+'</div>'; }
 
 // localStorage helpers
 function ls(k)    { return localStorage.getItem(k)||''; }
@@ -1886,7 +1898,7 @@ function ignRender(filterQ){
     data.sort(function(a,b){ return b.rank - a.rank; });
   }
 
-  if(signal === 'broker_rev'){
+  if(signal === 'broker_rev_legacy'){
     /* Broker forecast revisions over the last week (live Group D feed):
        D·I = fc EPS change % 1w, D·H = fc Rev change % 1w. Keep any ticker
        where either moved by 1% or more, up or down. */
@@ -1904,6 +1916,8 @@ function ignRender(filterQ){
      E: B–E Rev 1d/1w/1m/3m · F–I EPS · J–M PBT · N brokers · O–R FY2 Rev
         S–V FY2 EPS · W–X FY2 PBT 1d/1m · Y–AB EBITDA · AC–AD FY2 EBITDA 1d/1m */
   var E_SIG = {
+    broker_rev: function(e){ var a=col(e,'G'), r=col(e,'C');
+      return ((a!==null&&Math.abs(a)>=1)||(r!==null&&Math.abs(r)>=1)) ? [['EPS 1W',a],['REV 1W',r]] : null; },
     brk_today: function(e){ var a=col(e,'F'), r=col(e,'B');
       return ((a!==null&&Math.abs(a)>=1)||(r!==null&&Math.abs(r)>=1)) ? [['EPS 1D',a],['REV 1D',r]] : null; },
     clean_up: function(e){ var eh=col(e,'H'),rh=col(e,'D'),ph=col(e,'L'),eg=col(e,'G'),rg=col(e,'C'),pg=col(e,'K');
@@ -1919,10 +1933,23 @@ function ignRender(filterQ){
       var ea=a.length?Math.min.apply(null,a):null, pa=p.length?Math.min.apply(null,p):null;
       return ((ea!==null&&ea<=-2)||(pa!==null&&pa<=-2)) ? [['EPS',ea],['PBT',pa]] : null; }
   };
+  /* Grid periods per signal: [bold, grey, last-column key, last-column label] */
+  var E_PER = { brk_today:['1d','1w','S','FY2 EPS 1D'], broker_rev:['1w','1m','T','FY2 EPS 1W'],
+    clean_up:['1m','3m','U','FY2 EPS 1M'], fwd_mom:['1m','3m','U','FY2 EPS 1M'], upg_cycle:['1m','3m','V','FY2 EPS 3M'],
+    unpriced:['1w','1m','PX','PRICE 3D'], downgrade:['1d','1w','T','FY2 EPS 1W'] };
+  var E_COL = { EPS:{'1d':'F','1w':'G','1m':'H','3m':'I'}, REV:{'1d':'B','1w':'C','1m':'D','3m':'E'},
+    PBT:{'1d':'J','1w':'K','1m':'L','3m':'M'}, EBITDA:{'1d':'Y','1w':'Z','1m':'AA','3m':'AB'} };
+  var brkMode = !!E_SIG[signal];
+  (function(){ var ths=document.getElementById('th-sector'), thm=document.getElementById('th-brkmom'); if(!ths||!thm) return;
+    if(brkMode){ var pr=E_PER[signal];
+      ths.innerHTML='<div style="display:flex;justify-content:flex-start;">'+['EPS','REV','PBT','EBITDA','BRK'].map(function(m){
+        return '<span style="width:66px;text-align:right;display:inline-block;line-height:1.2;">'+m+(m==='BRK'?'':'<br><span style="font-size:7.5px;color:var(--text-dim);">'+pr[0].toUpperCase()+' / '+pr[1].toUpperCase()+'</span>')+'</span>'; }).join('')+'</div>';
+      thm.textContent=pr[3]; }
+    else { ths.textContent='Sector'; thm.textContent='Broker Mom'; } })();
   if(E_SIG[signal]){
     data = data.filter(function(d){
       var grp = liveData[d.tidm]; if(!grp||!grp.e) return false;
-      var s = E_SIG[signal](grp.e, grp.d); d._sig = s; return !!s;
+      var s = E_SIG[signal](grp.e, grp.d); d._sig = s; d._e = grp.e; d._dp = grp.d; return !!s;
     });
     if(ignSortKey==='rank' && !ignSortAsc) data.sort(function(a,b){ return b.rank - a.rank; });
   }
@@ -1951,14 +1978,12 @@ function ignRender(filterQ){
                 + '<span style="font-size:11px;flex-shrink:0;">'+(d.brokerFlag||'<span style="display:inline-block;width:22px;"></span>')+'</span>'
                 + '<span style="color:'+momCol+';text-align:right;">'+momPct+'</span>'
                 + '</div>';
-    if(E_SIG[signal] && d._sig){
-      var bf2=function(v){ if(v===null||v===undefined||isNaN(v)) return '<span style="color:var(--text-dim);">—</span>';
-        var c=v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)'; var s=Math.abs(v)>=1?'font-weight:700;':'';
-        return '<span style="color:'+c+';'+s+'">'+(v>0?'+':'')+v.toFixed(1)+'%</span>'; };
-      momCell = '<div style="display:flex;flex-direction:column;align-items:flex-end;width:100%;line-height:1.25;font-size:10px;">'
-              + d._sig.map(function(p){ return '<span><span style="color:var(--text-dim);">'+p[0]+' </span>'+bf2(p[1])+'</span>'; }).join('')+'</div>';
+    if(brkMode && d._sig){
+      var pr=E_PER[signal], lv;
+      if(pr[2]==='PX'){ var px=col(d._dp,'C'), c3=col(d._dp,'Y'); lv=(px&&c3)?(px/c3-1)*100:null; } else lv=col(d._e,pr[2]);
+      momCell = '<div style="text-align:right;width:100%;font-size:11px;">'+brkFmt(lv,true)+'</div>';
     }
-    if(signal === 'broker_rev'){
+    if(signal === 'broker_rev_legacy'){
       var bf=function(v){ if(v===null||v===undefined) return '<span style="color:var(--text-dim);">—</span>';
         var c=v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)'; var s=Math.abs(v)>=1?'font-weight:700;':'';
         return '<span style="color:'+c+';'+s+'">'+(v>0?'+':'')+v.toFixed(1)+'%</span>'; };
@@ -1986,7 +2011,8 @@ function ignRender(filterQ){
       +'<td style="text-align:center;">'+renderDelta(d.tidm,pos)+'</td>'
       +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+tidmCell+'</td>'
       +'<td class="td-left" style="font-size:10px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.name||'')+'</td>'
-      +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
+      +(brkMode ? '<td class="td-left" style="white-space:nowrap;">'+brkGrid(d._e, E_PER[signal], E_COL)+'</td>'
+               : '<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>')
       +(function(){
         var signals = [];
         if(checkSwing(d)){
