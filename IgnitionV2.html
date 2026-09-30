@@ -309,6 +309,13 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       <option value="vol_surge">🔊 Volume Surge</option>
       <option value="new_high">🔵 New High</option>
       <option value="minervini">⚡ Minervini</option>
+      <option value="broker_rev">📊 Broker Fc Moves 1W ±1%</option>
+      <option value="brk_today">📊 Broker Moves · Today ±1%</option>
+      <option value="clean_up">✅ Clean Upgrade (EPS+Rev+PBT)</option>
+      <option value="fwd_mom">⏩ Forward Momentum (FY2 &gt; FY1)</option>
+      <option value="upg_cycle">🔁 Upgrade Cycle (1w+1m+3m)</option>
+      <option value="unpriced">🎯 Unpriced Upgrade</option>
+      <option value="downgrade">⚠️ Downgrade Alert</option>
     </select>
     <input id="ticker-search" type="text" placeholder="🔍 Lookup ticker…" autocomplete="off" spellcheck="false"
       style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;width:160px;outline:none;"
@@ -431,7 +438,7 @@ var K = {
   RANK_PREV: 'ignitev2_rank_prev',
 };
 
-var NUM_URLS    = 25;
+var NUM_URLS    = 36;
 var SHARES_LOW  = 134;
 var SHARES_HIGH = 495;
 
@@ -476,7 +483,14 @@ var PRESET_URLS = [
   'https://docs.google.com/spreadsheets/d/1AZd5Q9r-xVwN6GrEI2q9Ph6iExQGS4Jd/gviz/tq?tqx=out:csv&headers=1&gid=728919329',   // D4
   'https://docs.google.com/spreadsheets/d/1_xmPZi3xcAtCNscD4J0iyO4mCcoDbW4s/gviz/tq?tqx=out:csv&headers=1&gid=1175633764',  // D5
   'https://docs.google.com/spreadsheets/d/1Eg3-jNss3NtOaCdQphrE8PYjn68mDMF2/gviz/tq?tqx=out:csv&headers=1&gid=280080897',   // D6
-  '',  // slot 25 spare
+  // Group E (slots 25–30): Broker forecast revisions (1d/1w/1m/3m, FY1 + FY2)
+  'https://docs.google.com/spreadsheets/d/1vw-aoc2NeY6pzWm7mOC8w1P7itWiDTXc/gviz/tq?tqx=out:csv&headers=1',  // E1
+  'https://docs.google.com/spreadsheets/d/1YwxmnePPnn_GNKa_vwVMQKgqbfOOaM-N/gviz/tq?tqx=out:csv&headers=1',  // E2
+  'https://docs.google.com/spreadsheets/d/1p0f2AhLyN3V7F4sr9XqZEAwzAodBm90o/gviz/tq?tqx=out:csv&headers=1',  // E3
+  'https://docs.google.com/spreadsheets/d/1bniNBB4OK5JetPkxaukyhqSWFAi5WCZQ/gviz/tq?tqx=out:csv&headers=1',  // E4
+  'https://docs.google.com/spreadsheets/d/1iQsFjgvhaqmeAclKqrPax-qB0E1ogN_-/gviz/tq?tqx=out:csv&headers=1',  // E5
+  'https://docs.google.com/spreadsheets/d/11j1Ga0ywUTUAdzXsFune1cBUT6LP-lBH/gviz/tq?tqx=out:csv&headers=1',  // E6
+  '','','','','',''  // slots 31–36 spare
 ];
 
 var FEED_LABELS = [
@@ -488,11 +502,13 @@ var FEED_LABELS = [
   'C4 · Debt/Sector pt4', 'C5 · Debt/Sector pt5', 'C6 · Debt/Sector pt6',
   'D1 · Price/MA pt1',    'D2 · Price/MA pt2',    'D3 · Price/MA pt3',
   'D4 · Price/MA pt4',    'D5 · Price/MA pt5',    'D6 · Price/MA pt6',
-  'Spare',
+  'E1 · Broker revs pt1', 'E2 · Broker revs pt2', 'E3 · Broker revs pt3',
+  'E4 · Broker revs pt4', 'E5 · Broker revs pt5', 'E6 · Broker revs pt6',
+  'Spare','Spare','Spare','Spare','Spare','Spare',
 ];
 
 // Which group each slot belongs to: 0=A, 1=B, 2=C, 3=D, -1=spare
-var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, -1];
+var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, 4,4,4,4,4,4, -1,-1,-1,-1,-1,-1];
 
 // ── Init ──
 (function init(){
@@ -535,7 +551,8 @@ function buildUrlList(){
     { label:'Feed Group B · EBITDA / PTP / Price', start:7,  end:12 },
     { label:'Feed Group C · Net Debt / Sector / MCap', start:13, end:18 },
     { label:'Feed Group D · Price / Volume / Trend / MA', start:19, end:24 },
-    { label:'Spare', start:25, end:25 },
+    { label:'Feed Group E · Broker forecast revisions', start:25, end:30 },
+    { label:'Spare', start:31, end:36 },
   ];
   var html = '';
   sections.forEach(function(s){
@@ -651,7 +668,7 @@ function refreshSingleUrl(idx){
   if(!url){ showToast('No URL in slot '+idx,'warn'); return; }
 
   var groupIdx    = FEED_GROUP[idx-1];
-  var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
+  var groupLetter = ['a','b','c','d','e'][groupIdx] || 'spare';
 
   setUrlIcon(idx, '⏳', 'var(--amber)');
 
@@ -667,7 +684,7 @@ function refreshSingleUrl(idx){
         var tid = (r['__col0']||'').trim().toUpperCase();
         if(!tid || tid==='TIDM') return;
         if(tid.indexOf('#')>=0) return;   /* delisted stub e.g. SPA#1 */
-        if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null };
+        if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null, e:null };
         liveData[tid][groupLetter] = r;
         count++;
       });
@@ -696,7 +713,7 @@ function refreshData(){
 
   active.forEach(function(entry){
     var groupIdx    = FEED_GROUP[entry.idx-1];
-    var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
+    var groupLetter = ['a','b','c','d','e'][groupIdx] || 'spare';
     // ── capture both entry and groupLetter in an IIFE to avoid closure bug ──
     (function(capturedEntry, capturedGroup){
       // gviz reads the live sheet, so every group gets a per-load cache-buster.
@@ -738,7 +755,7 @@ function onDataLoaded(rows, errors, total){
     var tid = (r['__col0']||'').trim().toUpperCase(); // col A = TIDM in all groups
     if(!tid || tid === 'TIDM' || tid === 'TICKER') return;
     var g = r['__group']||'a';
-    if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null };
+    if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null, e:null };
     liveData[tid][g] = r;
   });
 
@@ -1127,7 +1144,7 @@ function loadGroupDOverride(input){
     rows.forEach(function(r){
       var tid = (r['__col0']||'').trim().toUpperCase();
       if(!tid||tid==='TIDM') return;
-      if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null };
+      if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null, e:null };
       liveData[tid].d = r;
       count++;
     });
@@ -1869,6 +1886,47 @@ function ignRender(filterQ){
     data.sort(function(a,b){ return b.rank - a.rank; });
   }
 
+  if(signal === 'broker_rev'){
+    /* Broker forecast revisions over the last week (live Group D feed):
+       D·I = fc EPS change % 1w, D·H = fc Rev change % 1w. Keep any ticker
+       where either moved by 1% or more, up or down. */
+    data = data.filter(function(d){
+      var grp = liveData[d.tidm];
+      if(!grp||!grp.d) return false;
+      var e = col(grp.d,'I'), r = col(grp.d,'H');
+      d._brkEps = e; d._brkRev = r;
+      return (e!==null && Math.abs(e)>=1) || (r!==null && Math.abs(r)>=1);
+    });
+    if(ignSortKey==='rank' && !ignSortAsc) data.sort(function(a,b){ return b.rank - a.rank; });
+  }
+
+  /* ── Group E broker-revision signals ──
+     E: B–E Rev 1d/1w/1m/3m · F–I EPS · J–M PBT · N brokers · O–R FY2 Rev
+        S–V FY2 EPS · W–X FY2 PBT 1d/1m · Y–AB EBITDA · AC–AD FY2 EBITDA 1d/1m */
+  var E_SIG = {
+    brk_today: function(e){ var a=col(e,'F'), r=col(e,'B');
+      return ((a!==null&&Math.abs(a)>=1)||(r!==null&&Math.abs(r)>=1)) ? [['EPS 1D',a],['REV 1D',r]] : null; },
+    clean_up: function(e){ var eh=col(e,'H'),rh=col(e,'D'),ph=col(e,'L'),eg=col(e,'G'),rg=col(e,'C'),pg=col(e,'K');
+      return (eh>0&&rh>0&&ph>0&&eg!==null&&eg>=0&&rg!==null&&rg>=0&&pg!==null&&pg>=0) ? [['EPS 1M',eh],['PBT 1M',ph]] : null; },
+    fwd_mom: function(e){ var f1=col(e,'H'), f2=col(e,'U');
+      return (f2!==null&&f2>=1&&(f1===null||f2>f1)) ? [['FY1 1M',f1],['FY2 1M',f2]] : null; },
+    upg_cycle: function(e){ var w=col(e,'G'), m=col(e,'H'), q=col(e,'I');
+      return (w>0&&m>0&&q>0) ? [['EPS 1W',w],['EPS 3M',q]] : null; },
+    unpriced: function(e,dp){ var w=col(e,'G'); var px=col(dp,'C'), c3=col(dp,'Y');
+      var mv=(px&&c3)?(px/c3-1)*100:null;
+      return (w!==null&&w>=3&&mv!==null&&mv<=1) ? [['EPS 1W',w],['PX 3D',mv]] : null; },
+    downgrade: function(e){ var a=[col(e,'F'),col(e,'G')].filter(function(v){return v!==null;}), p=[col(e,'J'),col(e,'K')].filter(function(v){return v!==null;});
+      var ea=a.length?Math.min.apply(null,a):null, pa=p.length?Math.min.apply(null,p):null;
+      return ((ea!==null&&ea<=-2)||(pa!==null&&pa<=-2)) ? [['EPS',ea],['PBT',pa]] : null; }
+  };
+  if(E_SIG[signal]){
+    data = data.filter(function(d){
+      var grp = liveData[d.tidm]; if(!grp||!grp.e) return false;
+      var s = E_SIG[signal](grp.e, grp.d); d._sig = s; return !!s;
+    });
+    if(ignSortKey==='rank' && !ignSortAsc) data.sort(function(a,b){ return b.rank - a.rank; });
+  }
+
   var maxRank = Math.max.apply(null, data.map(function(d){ return d.rank||0; }))||1;
   var html    = '';
 
@@ -1893,6 +1951,21 @@ function ignRender(filterQ){
                 + '<span style="font-size:11px;flex-shrink:0;">'+(d.brokerFlag||'<span style="display:inline-block;width:22px;"></span>')+'</span>'
                 + '<span style="color:'+momCol+';text-align:right;">'+momPct+'</span>'
                 + '</div>';
+    if(E_SIG[signal] && d._sig){
+      var bf2=function(v){ if(v===null||v===undefined||isNaN(v)) return '<span style="color:var(--text-dim);">—</span>';
+        var c=v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)'; var s=Math.abs(v)>=1?'font-weight:700;':'';
+        return '<span style="color:'+c+';'+s+'">'+(v>0?'+':'')+v.toFixed(1)+'%</span>'; };
+      momCell = '<div style="display:flex;flex-direction:column;align-items:flex-end;width:100%;line-height:1.25;font-size:10px;">'
+              + d._sig.map(function(p){ return '<span><span style="color:var(--text-dim);">'+p[0]+' </span>'+bf2(p[1])+'</span>'; }).join('')+'</div>';
+    }
+    if(signal === 'broker_rev'){
+      var bf=function(v){ if(v===null||v===undefined) return '<span style="color:var(--text-dim);">—</span>';
+        var c=v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)'; var s=Math.abs(v)>=1?'font-weight:700;':'';
+        return '<span style="color:'+c+';'+s+'">'+(v>0?'+':'')+v.toFixed(1)+'%</span>'; };
+      momCell = '<div style="display:flex;flex-direction:column;align-items:flex-end;width:100%;line-height:1.25;font-size:10px;" title="Broker forecast change over 1 week">'
+              + '<span><span style="color:var(--text-dim);">EPS </span>'+bf(d._brkEps)+'</span>'
+              + '<span><span style="color:var(--text-dim);">REV </span>'+bf(d._brkRev)+'</span></div>';
+    }
     // New High: show R / E / RE matching V1
     var nhStr = '';
     if(d.revNewHigh && d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">RE</span>';
