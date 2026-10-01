@@ -1702,6 +1702,14 @@ function ignSort(key){
   else { ignSortKey='rank'; ignSortAsc=false; }
   ignRender();
 }
+function ignBrkSort(m){
+  /* Broker grid headers: 1st click highest-first, 2nd lowest-first, 3rd back to rank */
+  var k='brk:'+m;
+  if(ignSortKey!==k){ ignSortKey=k; ignSortAsc=false; }
+  else if(!ignSortAsc){ ignSortAsc=true; }
+  else { ignSortKey='rank'; ignSortAsc=false; }
+  ignRender();
+}
 function cycleIdxFilter(){
   idxFilter = (idxFilter + 1) % 7;
   var labels  = ['Index','FTSE 100 ✕','FTSE 250 ✕','Small Cap ✕','AIM 100 ✕','AIM All-Share ✕','No Index ✕'];
@@ -1775,6 +1783,7 @@ function ignRender(filterQ){
   data.sort(function(a,b){
     var av,bv;
     if(ignSortKey==='tech'){ av=techSortVal(a); bv=techSortVal(b); }
+    else if(ignSortKey.indexOf('brk:')===0){ av=a.rank; bv=b.rank; }
     else { av=a[ignSortKey]; bv=b[ignSortKey]; }
     av=(av===undefined||av===null||av==='')?(ignSortAsc?Infinity:-Infinity):av;
     bv=(bv===undefined||bv===null||bv==='')?(ignSortAsc?Infinity:-Infinity):bv;
@@ -1943,8 +1952,10 @@ function ignRender(filterQ){
   (function(){ var ths=document.getElementById('th-sector'), thm=document.getElementById('th-brkmom'); if(!ths||!thm) return;
     if(brkMode){ var pr=E_PER[signal];
       ths.innerHTML='<div style="display:flex;justify-content:flex-start;">'+['EPS','REV','PBT','EBITDA','BRK'].map(function(m){
-        return '<span style="width:66px;text-align:right;display:inline-block;line-height:1.2;">'+m+(m==='BRK'?'':'<br><span style="font-size:7.5px;color:var(--text-dim);">'+pr[0].toUpperCase()+' / '+pr[1].toUpperCase()+'</span>')+'</span>'; }).join('')+'</div>';
-      thm.textContent=pr[3]; }
+        var on=ignSortKey==='brk:'+m, arr=on?(ignSortAsc?' ▲':' ▼'):'';
+        return '<span onclick="event.stopPropagation();ignBrkSort(\''+m+'\')" title="Sort by '+m+' '+(m==='BRK'?'broker count':pr[0].toUpperCase())+' — click again to reverse, third click resets" style="width:66px;text-align:right;display:inline-block;line-height:1.2;cursor:pointer;'+(on?'color:var(--amber);':'')+'">'+m+arr+(m==='BRK'?'':'<br><span style="font-size:7.5px;color:var(--text-dim);">'+pr[0].toUpperCase()+' / '+pr[1].toUpperCase()+'</span>')+'</span>'; }).join('')+'</div>';
+      var lon=ignSortKey==='brk:LAST';
+      thm.innerHTML='<span onclick="event.stopPropagation();ignBrkSort(\'LAST\')" style="cursor:pointer;'+(lon?'color:var(--amber);':'')+'">'+pr[3]+(lon?(ignSortAsc?' ▲':' ▼'):'')+'</span>'; }
     else { ths.textContent='Sector'; thm.textContent='Broker Mom'; } })();
   if(E_SIG[signal]){
     data = data.filter(function(d){
@@ -1952,6 +1963,20 @@ function ignRender(filterQ){
       var s = E_SIG[signal](grp.e, grp.d); d._sig = s; d._e = grp.e; d._dp = grp.d; return !!s;
     });
     if(ignSortKey==='rank' && !ignSortAsc) data.sort(function(a,b){ return b.rank - a.rank; });
+    else if(ignSortKey.indexOf('brk:')===0){
+      var bm=ignSortKey.slice(4), bp=E_PER[signal];
+      var bval=function(d){
+        if(bm==='BRK') return col(d._e,'N');
+        if(bm==='LAST'){ if(bp[2]==='PX'){ var px=col(d._dp,'C'), c3=col(d._dp,'Y'); return (px&&c3)?(px/c3-1)*100:null; } return col(d._e,bp[2]); }
+        var v=col(d._e,E_COL[bm][bp[0]]); return v!==null?v:col(d._e,E_COL[bm][bp[1]]);
+      };
+      data.sort(function(a,b){
+        var av=bval(a), bv=bval(b);
+        if(av===null&&bv===null) return b.rank-a.rank;
+        if(av===null) return 1; if(bv===null) return -1;   // blanks always last
+        return ignSortAsc?av-bv:bv-av;
+      });
+    }
   }
 
   var maxRank = Math.max.apply(null, data.map(function(d){ return d.rank||0; }))||1;
