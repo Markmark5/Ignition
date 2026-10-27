@@ -2023,9 +2023,10 @@ function ignRender(filterQ){
     else if(d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">E</span>';
     else nhStr = '<span style="color:var(--text-dim);">—</span>';
     // TIDM — amber, bold, 13px matching V1, with flag slots
-    var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,196,0,0.25);text-underline-offset:3px;" title="Open chart" onclick="event.stopPropagation();ignOpenChart(\''+d.tidm+'\')">'
-      +escHtml(d.tidm)+'</span>'+ignScoreBadge(d.tidm)
-      +(d.acqnFlag?' <span style="color:var(--red);font-size:10px;">⚑</span>':'');
+    /* ticker (+ flag) on the left, score circle pinned right so the circles line up down the column */
+    var tidmCell = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span><span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,196,0,0.25);text-underline-offset:3px;" title="Open chart" onclick="event.stopPropagation();ignOpenChart(\''+d.tidm+'\')">'
+      +escHtml(d.tidm)+'</span>'
+      +(d.acqnFlag?' <span style="color:var(--red);font-size:10px;">⚑</span>':'')+'</span>'+ignScoreBadge(d.tidm)+'</div>';
     function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
 
     var rowBg = d._swingDays===0 ? 'background:rgba(16,185,129,.07);'    // intraday — green tint
@@ -2107,8 +2108,8 @@ function ignScoreBadge(tidm){
   var s=IGN_SCORES&&IGN_SCORES[String(tidm||'').toUpperCase()];
   if(!s||s.score==null||isNaN(s.score)) return '';
   var v=+s.score, col=v>=75?'#00c814':v>=50?'#ffc400':'#e02525';
-  return ' <span title="Latest RNS scorecard: '+v+(s.date?' · '+escHtml(s.date):'')+' — click for all scorecards" onclick="event.stopPropagation();ignShowRNS(\''+escHtml(tidm)+'\')"'
-    +' style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:6px;border-radius:50%;background:'+col+';box-shadow:0 0 0 1px rgba(255,255,255,.85);color:#0d0d16;font:700 8px Inter,system-ui,sans-serif;vertical-align:middle;cursor:pointer;text-decoration:none;">'+v+'</span>';
+  return '<span title="Latest RNS scorecard: '+v+(s.date?' · '+escHtml(s.date):'')+' — click for all scorecards" onclick="event.stopPropagation();ignShowRNS(\''+escHtml(tidm)+'\')"'
+    +' style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex-shrink:0;border-radius:50%;background:'+col+';box-shadow:0 0 0 1px rgba(255,255,255,.85);color:#0d0d16;font:700 8px Inter,system-ui,sans-serif;vertical-align:middle;cursor:pointer;text-decoration:none;">'+v+'</span>';
 }
 function _ignSetScores(m){
   IGN_SCORES=m||{};
