@@ -841,7 +841,7 @@ function processWeeklySnapshot(text, fname){
 }
 
 function parseWeeklySnapshotText(text){
-  // Split on block separators — each block starts with the separator line + "SHARESCOPE DATA BLOCK — TIDM"
+  // Split on block separators — each block starts with the separator line + "DATABLOCK — TIDM" (formerly "SHARESCOPE DATA BLOCK — TIDM")
   var SEP    = '============================================================';
   var blocks = text.split(SEP);
   var data   = {}, latestDate = '';
@@ -849,7 +849,7 @@ function parseWeeklySnapshotText(text){
   for(var bi = 1; bi < blocks.length; bi++){
     var block = blocks[bi];
     // Exact TIDM match: must be "SHARESCOPE DATA BLOCK — TIDM" at start of block
-    var tidmM = block.match(/^\nSHARESCOPE DATA BLOCK[\s\u2014\u2013\-]+([A-Z0-9.]+)\s*\n/);
+    var tidmM = block.match(/^\n(?:SHARESCOPE DATA BLOCK|DATABLOCK)[\s\u2014\u2013\-]+([A-Z0-9.]+)\s*\n/);   /* title renamed DATABLOCK (Nov 26); old title still read */
     if(!tidmM) continue;
     var tidm = tidmM[1].trim();
     /* The extractor wraps the title line in separators, so the ticker's DATA
